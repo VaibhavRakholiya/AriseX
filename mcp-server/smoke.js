@@ -613,6 +613,40 @@ await check('a task claimed while idle only moves once a new session starts', as
     await T.end_session({ agent: liveAgent.slug });
 });
 
+// ── Concurrent sessions for the same agent across repos (TASK-650 follow-up) ──
+// The real-world shape: the same agent identity has separate /start-agent
+// terminals open per repo at once, each independently calling start_session
+// once and end_session once when *its own* repo's queue empties — never
+// aware of sibling sessions elsewhere. A plain sessionActive boolean meant
+// whichever one finished first wiped out "live" for the others too.
+section('concurrent sessions for one agent (TASK-650 follow-up)');
+
+await check('two sessions starting keeps the agent live until both end', async () => {
+    const multiAgent = (await T.create_agent({ name: 'Multi Session Tester' })).agent;
+
+    await T.start_session({ agent: multiAgent.slug }); // "repo A" terminal
+    await T.start_session({ agent: multiAgent.slug }); // "repo B" terminal, same agent identity
+    assert.equal((await T.list_agents({})).find(a => a.id === multiAgent.id).live, true);
+
+    // Repo A's terminal finishes its own queue and ends its session — repo
+    // B's terminal is still working and never called end_session itself.
+    await T.end_session({ agent: multiAgent.slug });
+    assert.equal(
+        (await T.list_agents({})).find(a => a.id === multiAgent.id).live, true,
+        'one sibling session ending must not drop the agent to idle while another is still active — this is the bug TASK-650 follow-up fixes');
+
+    // Repo B's terminal now finishes too — only now should it read idle.
+    await T.end_session({ agent: multiAgent.slug });
+    assert.equal((await T.list_agents({})).find(a => a.id === multiAgent.id).live, false);
+});
+
+await check('end_session never drops sessionCount below zero', async () => {
+    const soloAgent = (await T.create_agent({ name: 'Solo Session Tester' })).agent;
+    await T.end_session({ agent: soloAgent.slug }); // never started — must not go negative
+    await T.start_session({ agent: soloAgent.slug });
+    assert.equal((await T.list_agents({})).find(a => a.id === soloAgent.id).live, true);
+});
+
 // ── Cleanup ────────────────────────────────────────────────
 section('cleanup');
 await check('scratch namespace removed', async () => {

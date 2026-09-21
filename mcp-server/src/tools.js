@@ -763,7 +763,8 @@ export async function start_session({ agent: ref }) {
         const idx = agents.findIndex(a => a.id == record.id);
         if (idx === -1) return { next: undefined, result: null };
         const next = agents.slice();
-        next[idx] = { ...D.hydrateAgent(agents[idx]), sessionActive: true };
+        const hydrated = D.hydrateAgent(agents[idx]);
+        next[idx] = { ...hydrated, sessionCount: hydrated.sessionCount + 1, sessionActive: true };
         return { next, result: null };
     });
 
@@ -792,7 +793,9 @@ export async function end_session({ agent: ref }) {
         const idx = agents.findIndex(a => a.id == record.id);
         if (idx === -1) return { next: undefined, result: null };
         const next = agents.slice();
-        next[idx] = { ...D.hydrateAgent(agents[idx]), sessionActive: false };
+        const hydrated = D.hydrateAgent(agents[idx]);
+        const sessionCount = Math.max(0, hydrated.sessionCount - 1);
+        next[idx] = { ...hydrated, sessionCount, sessionActive: sessionCount > 0 };
         return { next, result: null };
     });
 

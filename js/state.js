@@ -165,11 +165,21 @@ const State = (() => {
         // Everything else assigned to it and not yet finished sits in its queue.
         agent.currentTaskId = agent.currentTaskId === undefined || agent.currentTaskId === ''
             ? null : agent.currentTaskId;
-        // Whether a live terminal/Claude Desktop session has marked itself
-        // present via start_session — distinct from currentTaskId, which
-        // just means a task is claimed/queued (TASK-574). Mirrors
-        // mcp-server/src/domain.js hydrateAgent.
-        agent.sessionActive = agent.sessionActive === true;
+        // How many live terminal/Claude Desktop sessions currently have this
+        // agent open via start_session — distinct from currentTaskId, which
+        // just means a task is claimed/queued (TASK-574). A count, not a
+        // bare boolean, because the same agent legitimately runs multiple
+        // concurrent sessions (one per repo) whose queues finish and call
+        // endSession independently of each other (TASK-650 follow-up).
+        // sessionActive is always derived from it, never stored
+        // independently; a legacy record with only the old boolean seeds
+        // count at 1 so a session already marked live doesn't silently
+        // read idle after this migration. Mirrors mcp-server/src/domain.js
+        // hydrateAgent.
+        agent.sessionCount = Number.isFinite(agent.sessionCount) && agent.sessionCount >= 0
+            ? Math.floor(agent.sessionCount)
+            : (agent.sessionActive === true ? 1 : 0);
+        agent.sessionActive = agent.sessionCount > 0;
         if (!agent.slug || (taken && taken.has(agent.slug))) agent.slug = slugifyAgent(agent.name, taken);
         if (taken) taken.add(agent.slug);
     }
@@ -1242,9 +1252,26 @@ const State = (() => {
          * claimed active task to In Progress for the first time, if it
          * hasn't been already (TASK-574).
          */
+        /**
+         * `sessionCount` (TASK-650 follow-up), not a bare boolean: the same
+         * agent identity legitimately has multiple concurrent live sessions
+         * at once — one terminal per repo, since /start-agent runs a
+         * separate session per project's repo and an agent's work commonly
+         * spans several. A plain `sessionActive = true/false` meant whichever
+         * sibling session finished its own repo's queue first and called
+         * endSession wiped out the flag for every other repo's still-active
+         * session too — "agents are working but showing idle". Counting
+         * concurrent start/end calls and deriving `sessionActive` from
+         * `count > 0` keeps one repo's session ending from affecting another.
+         * (A session that crashes without ever calling endSession leaks a
+         * +1, same class of imperfection the old boolean had with a stuck
+         * `true` — traded off deliberately in favor of fixing the confirmed,
+         * actively-reported bug.)
+         */
         startSession(agentId) {
             const agent = this.get(agentId);
             if (!agent) return null;
+            agent.sessionCount  = (agent.sessionCount || 0) + 1;
             agent.sessionActive = true;
             const task = agent.currentTaskId != null ? _data.tasks.find(t => t.id == agent.currentTaskId) : null;
             if (task) moveToInProgressColumn(task);
@@ -1257,7 +1284,8 @@ const State = (() => {
         endSession(agentId) {
             const agent = this.get(agentId);
             if (!agent) return null;
-            agent.sessionActive = false;
+            agent.sessionCount  = Math.max(0, (agent.sessionCount || 0) - 1);
+            agent.sessionActive = agent.sessionCount > 0;
             save();
             emit('agents:changed', agent);
             return { agent };

@@ -148,10 +148,23 @@ export function hydrateAgent(raw) {
     a.enabled       = a.enabled !== false;
     a.createdAt     = a.createdAt || new Date().toISOString();
     a.currentTaskId = a.currentTaskId === undefined || a.currentTaskId === '' ? null : a.currentTaskId;
-    // Whether a live terminal/Claude Desktop session has marked itself
-    // present via start_session — distinct from having a currentTaskId,
-    // which just means a task is claimed/queued (TASK-574).
-    a.sessionActive = a.sessionActive === true;
+    // How many live terminal/Claude Desktop sessions currently have this
+    // agent open via start_session — distinct from having a currentTaskId,
+    // which just means a task is claimed/queued (TASK-574). A count, not a
+    // bare boolean: the same agent legitimately runs one session per repo
+    // (its work commonly spans several projects/repos at once), and each
+    // one's queue finishing calls end_session independently — a plain
+    // boolean meant whichever sibling session finished first wiped out
+    // "live" for every other repo's still-active session too ("agents are
+    // working but showing idle", TASK-650 follow-up). sessionActive is
+    // always derived from the count, never stored independently; a legacy
+    // record with only the old boolean seeds count at 1 so a session
+    // already marked live doesn't silently read idle after this migration.
+    // Mirrors js/state.js normalizeImportedAgent.
+    a.sessionCount = Number.isFinite(a.sessionCount) && a.sessionCount >= 0
+        ? Math.floor(a.sessionCount)
+        : (a.sessionActive === true ? 1 : 0);
+    a.sessionActive = a.sessionCount > 0;
     return a;
 }
 
