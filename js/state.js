@@ -730,6 +730,25 @@ const State = (() => {
                 if (agent && agent.currentTaskId == id) promoteNextForAgent(agent.id, _data.tasks[idx].projectId);
             }
 
+            // The reverse of the block above: dragging a task that an agent
+            // already finished (agentDoneAt set) back into "To Do" reopens
+            // it — clears agentDoneAt so it's no longer invisible to
+            // queueForAgent, which is exactly why it wasn't showing back up
+            // in the Agent Activity tab after being reopened this way. If
+            // the agent is currently idle, claim it immediately, the same
+            // "claimed if free" rule assignTask/create use.
+            if (fields.columnId && fields.columnId !== oldTask.columnId
+                && _data.tasks[idx].agentId != null
+                && _data.tasks[idx].agentDoneAt != null
+                && isToDoColumn(_data.tasks[idx])) {
+                _data.tasks[idx].agentDoneAt = null;
+                const agent = Agents.get(_data.tasks[idx].agentId);
+                if (agent && agent.currentTaskId == null) {
+                    agent.currentTaskId = id;
+                    if (agent.sessionActive) moveToInProgressColumn(_data.tasks[idx]);
+                }
+            }
+
             save();
             if (fields.columnId && fields.columnId !== oldTask.columnId) {
                 addActivity('task_moved', _data.tasks[idx].title, `→ column`);

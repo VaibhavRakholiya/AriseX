@@ -377,6 +377,24 @@ await check('finishing the last task leaves the agent idle', async () => {
     assert.equal(a.queueLength, 0);
 });
 
+await check('moving a finished task back to To Do reopens it and re-claims it if the agent is idle', async () => {
+    // taskB was auto-finished (Done) two checks ago and busyAgent is idle
+    // again as of the check above.
+    const before = await T.get_task({ task: taskB.taskKey });
+    assert.ok(before.agentDoneAt, 'sanity: taskB should still read finished going in');
+
+    const r = await T.move_task({ task: taskB.taskKey, column: 'To Do' });
+    assert.equal(r.agentReopened, true);
+
+    const after = await T.get_task({ task: taskB.taskKey });
+    assert.equal(after.agentDoneAt, null, 'agentDoneAt should be cleared on reopen');
+    assert.equal(after.isActiveForAgent, true, 'an idle agent should claim the reopened task immediately');
+    assert.equal(after.columnId, 'col-ip', 'a live session should move the reclaimed task to In Progress');
+
+    // clean up: finish it so busyAgent is idle again for the next check
+    await T.finish_task({ task: taskB.taskKey });
+});
+
 await check('reassigning an agent\'s active task away promotes its queue', async () => {
     const t1 = (await T.create_task({ projectId, title: 'Reassign 1', agent: busyAgent.slug })).task;
     const t2 = (await T.create_task({ projectId, title: 'Reassign 2', agent: busyAgent.slug })).task;

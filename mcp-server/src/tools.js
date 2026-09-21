@@ -421,20 +421,28 @@ export async function move_task({ task: ref, column }) {
         // column still needs an explicit finish_task call).
         const isDoneColumn = String(col.name).trim().toLowerCase() === 'done';
         const isToBeTestedColumn = String(col.name).trim().toLowerCase() === 'to be tested';
+        const isToDoColumnMove = String(col.name).trim().toLowerCase() === 'to do';
         const autoFinish = isDoneColumn && found.agentId != null && found.agentDoneAt == null;
         // Landing in "To Be Tested" frees the agent too, just without marking
         // the task done — it's waiting on a human, not back in the queue for
         // rework (TASK-572).
         const freesAgent = autoFinish || (isToBeTestedColumn && found.agentId != null);
+        // The reverse of autoFinish: moving a task an agent already finished
+        // back into "To Do" reopens it — clears agentDoneAt, since otherwise
+        // queueForAgent's `agentDoneAt == null` filter leaves it permanently
+        // invisible to the agent's queue and the Agent Activity tab even
+        // though it's sitting right there in To Do (found by the user moving
+        // a reviewed task back for rework and never seeing it re-queue).
+        const reopensTask = isToDoColumnMove && found.agentId != null && found.agentDoneAt != null;
 
         const updated = {
             ...D.hydrateTask(found),
             columnId: col.id,
-            agentDoneAt: autoFinish ? new Date().toISOString() : (found.agentDoneAt ?? null),
+            agentDoneAt: autoFinish ? new Date().toISOString() : (reopensTask ? null : (found.agentDoneAt ?? null)),
         };
         const next = tasks.slice();
         next[idx] = updated;
-        return { next, result: { task: updated, columnName: col.name, autoFinish, freesAgent } };
+        return { next, result: { task: updated, columnName: col.name, autoFinish, freesAgent, reopensTask } };
     });
 
     const isReviewColumn = String(moveResult.columnName).trim().toLowerCase().includes('review');
@@ -464,19 +472,34 @@ export async function move_task({ task: ref, column }) {
                 text: `${movedByAgent.name} is now idle.`,
             });
         }
+    } else if (moveResult.reopensTask) {
+        // The reopened task itself is the claim candidate — same "claimed if
+        // free" rule assign_task uses, so a reopened task an idle agent can
+        // pick up doesn't just sit there until someone reassigns it by hand.
+        queue = await releaseAndClaim(moveResult.task.agentId, { claimTaskId: moveResult.task.id });
+        if (queue.currentTaskId === moveResult.task.id && queue.sessionActive) {
+            moved = await moveToInProgressIfActive(moveResult.task.id);
+        }
     }
 
     return {
         taskKey: moveResult.task.taskKey, columnId: moveResult.task.columnId, columnName: moveResult.columnName,
         agentFreed: moveResult.freesAgent,
-        agentNextTaskId: queue?.currentTaskId ?? null,
+        agentReopened: moveResult.reopensTask,
+        agentNextTaskId: moveResult.freesAgent ? (queue?.currentTaskId ?? null) : null,
         hint: moveResult.freesAgent
             ? `Moving to "${moveResult.columnName}" freed the agent.` +
               (queue?.currentTaskId
                   ? ` It is now on task id ${queue.currentTaskId}` + (moved.moved ? ` (moved to "${moved.columnName}")` : '') + ` — call get_task to see it.`
                   : ' Its queue is empty.') +
               ` ${REFRESH_HINT}`
-            : REFRESH_HINT,
+            : moveResult.reopensTask
+                ? `Reopened — cleared agentDoneAt so it re-enters the agent's queue.` +
+                  (queue?.currentTaskId === moveResult.task.id
+                      ? ` The agent was idle and claimed it now` + (moved.moved ? ` (moved to "${moved.columnName}")` : '') + `.`
+                      : '') +
+                  ` ${REFRESH_HINT}`
+                : REFRESH_HINT,
     };
 }
 
