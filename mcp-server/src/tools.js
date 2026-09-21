@@ -646,41 +646,6 @@ export async function add_comment({ task: ref, text, author, needsInput }) {
     return { taskKey: outcome.task.taskKey, comment: outcome.comment, hint: REFRESH_HINT };
 }
 
-export async function log_time({ task: ref, hours, seconds, date, note }) {
-    const dur = seconds != null ? Number(seconds)
-              : hours   != null ? Number(hours) * 3600
-              : null;
-    if (dur == null || !Number.isFinite(dur) || dur <= 0) {
-        throw new Error('Pass a positive `hours` or `seconds`.');
-    }
-
-    return store.mutate('tasks', (tasks) => {
-        const found = D.resolveTask(tasks, ref);
-        if (!found) throw new Error(`No task matches "${ref}".`);
-        const idx = tasks.indexOf(found);
-        const t = D.hydrateTask(found);
-
-        const at = date ? new Date(date) : new Date();
-        if (Number.isNaN(at.getTime())) throw new Error(`"${date}" is not a valid date.`);
-
-        const entry = {
-            id:        D.uniqueId(t.timeEntries),
-            date:      at.toISOString(),
-            startedAt: new Date(at.getTime() - dur * 1000).toISOString(),
-            duration:  Math.round(dur),
-            note:      note || '',
-            source:    'agent',
-        };
-        const timeEntries = [...t.timeEntries, entry];
-        // timeSpent is always derived, never accumulated.
-        const updated = { ...t, timeEntries, timeSpent: D.computeTimeSpent(timeEntries) };
-
-        const next = tasks.slice();
-        next[idx] = updated;
-        return { next, result: { taskKey: t.taskKey, entry, timeSpent: updated.timeSpent, hint: REFRESH_HINT } };
-    });
-}
-
 export async function create_agent(args) {
     const { name } = args;
     if (!name || !String(name).trim()) throw new Error('name is required.');

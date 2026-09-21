@@ -78,7 +78,7 @@ Walkthrough:
    works on it until the active task calls `finish_task`.
 
 4. **Results land on the board** — `add_comment` (authored as the agent),
-   `log_time`, `move_task` to push the card to *In Review*.
+   `move_task` to push the card to *In Review*.
 
 5. **Claude signals it's done** — `finish_task`, or `move_task` straight into a
    column named exactly `"Done"` (which finishes it automatically). Either way
@@ -160,7 +160,7 @@ terminal.
 
 **Read:** `list_projects`, `list_agents`, `list_tasks`, `get_task`
 **Write:** `create_task`, `update_task`, `move_task`, `assign_task`, `finish_task`,
-`add_comment`, `log_time`, `create_agent`, `update_agent`
+`add_comment`, `create_agent`, `update_agent`
 
 Tasks are addressed by numeric id or by key (`TASK-12`); agents by id or slug;
 columns by id or name (`"In Progress"`).

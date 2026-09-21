@@ -129,15 +129,6 @@ register('add_comment',
             'True if this comment asks the user a question or requests permission — triggers an in-app + system notification.'),
     }, T.add_comment);
 
-register('log_time', 'Log time against a task. Pass hours or seconds.',
-    {
-        task:    taskRef,
-        hours:   z.number().optional(),
-        seconds: z.number().optional(),
-        date:    z.string().optional().describe('Defaults to now.'),
-        note:    z.string().optional(),
-    }, T.log_time);
-
 register('create_agent',
     'Create an agent profile. The systemPrompt is the instructions Claude adopts when working this agent\'s tasks.',
     {

@@ -244,13 +244,6 @@ await check('add_comment attributes to the owning agent by default', async () =>
     assert.equal(r.comment.author, 'bug-triager');
 });
 
-await check('log_time derives timeSpent in hours', async () => {
-    const r = await T.log_time({ task: task.taskKey, hours: 0.5, note: 'triage' });
-    assert.equal(r.entry.duration, 1800);
-    assert.equal(r.entry.source, 'agent');
-    assert.equal(r.timeSpent, 0.5);
-});
-
 await check('move_task accepts a column name', async () => {
     const r = await T.move_task({ task: task.taskKey, column: 'In Review' });
     assert.equal(r.columnId, 'col-review');
@@ -266,7 +259,6 @@ await check('get_task resolves names, agent and counts', async () => {
     assert.equal(full.columnName, 'In Review');
     assert.equal(full.agent.slug, 'bug-triager');
     assert.equal(full.comments.length, 1);
-    assert.equal(full.timeSpent, 0.5);
 });
 
 await check('renaming an agent rewrites assignee on its tasks', async () => {
