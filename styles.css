@@ -4112,6 +4112,7 @@ input.form-control--inline { padding: 5px 10px; }
     align-items: baseline;
     gap: var(--sp-2);
     width: 100%;
+    min-width: 0;
     text-align: left;
     background: none;
     border: none;
