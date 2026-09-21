@@ -4143,9 +4143,60 @@ input.form-control--inline { padding: 5px 10px; }
     display: flex;
     align-items: center;
     gap: var(--sp-1);
+    border-top: 2px solid transparent;
+    border-bottom: 2px solid transparent;
 }
 
 .agent-dash-queue-item .agent-dash-task { padding: var(--sp-1) 0; }
+
+.agent-dash-queue-item.dragging { opacity: 0.4; }
+
+.agent-dash-queue-item.drag-over-top    { border-top-color: var(--primary); }
+.agent-dash-queue-item.drag-over-bottom { border-bottom-color: var(--primary); }
+
+.agent-dash-queue-handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 14px;
+    color: var(--text-tertiary);
+    cursor: grab;
+    font-size: 11px;
+}
+
+.agent-dash-queue-item:active .agent-dash-queue-handle { cursor: grabbing; }
+
+.agent-dash-queue-setcurrent {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    font-size: 11px;
+}
+
+.agent-dash-queue-setcurrent:hover {
+    color: var(--status-inprogress);
+    background: color-mix(in srgb, var(--status-inprogress) 15%, transparent);
+}
+
+.agent-dash-current-dropzone {
+    border-radius: var(--radius-md);
+    border: 2px dashed transparent;
+    transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.agent-dash-current-dropzone.drag-over {
+    border-color: var(--primary);
+    background: var(--primary-ring);
+}
 
 .agent-dash-queue-move-group {
     display: flex;

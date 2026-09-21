@@ -25,6 +25,12 @@ const Agents = (() => {
     // default 4-item preview (TASK-513) — session-only UI state, not synced.
     const _expandedQueues = new Set();
 
+    // In-flight drag from the queue list (TASK-513 follow-up: drag-and-drop
+    // reordering, and dragging a queued task onto "Current task" to swap it
+    // in) — session-only, mirrors _kanbanDragTaskId's pattern in board.js.
+    let _queueDragAgentId = null;
+    let _queueDragTaskId  = null;
+
     const escHtml = (s) => UI.escHtml(s);
 
     // Avatars are cropped to a square and downscaled before being stored as a
@@ -394,23 +400,31 @@ const Agents = (() => {
                        ${taskLine(status.currentTask)}
                    </button>`
                 : `<p class="agent-dash-empty">Nothing in progress</p>`;
+            // A queued task can be dropped here to swap it in as the current
+            // one (TASK-513 follow-up) — see the drop wiring below.
+            const currentDropzoneHtml = `<div class="agent-dash-current-dropzone" data-current-dropzone="${a.id}">${currentHtml}</div>`;
 
             // Reordering (TASK-513) needs each item's real position in the
             // full queue, not just the visible slice, so the up/down buttons
-            // stay correct whether or not the "+N more" preview is expanded.
+            // and drag-and-drop stay correct whether or not the "+N more"
+            // preview is expanded — see data-full-queue below.
             const expanded = _expandedQueues.has(a.id);
             const visible  = expanded ? queue : queue.slice(0, 4);
             const queueHtml = queue.length
-                ? `<ul class="agent-dash-queue">${visible.map((t, i) => {
+                ? `<ul class="agent-dash-queue" data-full-queue="${queue.map(t => t.id).join(',')}">${visible.map((t, i) => {
                        const idx = queue.indexOf(t);
                        return `
-                       <li class="agent-dash-queue-item">
+                       <li class="agent-dash-queue-item" data-agent-id="${a.id}" data-task-id="${t.id}" draggable="true">
+                           <span class="agent-dash-queue-handle" title="Drag to reorder" aria-hidden="true"><i class="fa-solid fa-grip-vertical"></i></span>
                            <div class="agent-dash-queue-move-group">
                                <button type="button" class="agent-dash-queue-move" data-reorder-agent="${a.id}" data-reorder-task="${t.id}" data-reorder-dir="up" title="Move up" aria-label="Move up in queue" ${idx === 0 ? 'disabled' : ''}><i class="fa-solid fa-chevron-up"></i></button>
                                <button type="button" class="agent-dash-queue-move" data-reorder-agent="${a.id}" data-reorder-task="${t.id}" data-reorder-dir="down" title="Move down" aria-label="Move down in queue" ${idx === queue.length - 1 ? 'disabled' : ''}><i class="fa-solid fa-chevron-down"></i></button>
                            </div>
                            <button type="button" class="agent-dash-task" data-open-task="${t.id}">
                                ${taskLine(t)}
+                           </button>
+                           <button type="button" class="agent-dash-queue-setcurrent" data-setcurrent-agent="${a.id}" data-setcurrent-task="${t.id}" title="Make current task" aria-label="Make current task">
+                               <i class="fa-solid fa-play"></i>
                            </button>
                        </li>`;
                    }).join('')}
@@ -436,7 +450,7 @@ const Agents = (() => {
                 </div>
                 <div class="agent-dash-section">
                     <p class="agent-dash-section-label">Current task</p>
-                    ${currentHtml}
+                    ${currentDropzoneHtml}
                 </div>
                 <div class="agent-dash-section">
                     <p class="agent-dash-section-label">Queued${queue.length ? ` (${queue.length})` : ''}</p>
@@ -464,6 +478,105 @@ const Agents = (() => {
                 const taskId  = Number(btn.dataset.reorderTask);
                 const dir     = btn.dataset.reorderDir;
                 State.Agents.reorderQueueMove(agentId, taskId, dir);
+            });
+        });
+
+        // "Make current" — swap a queued task in as the agent's active one
+        // without dragging (TASK-513 follow-up).
+        box.querySelectorAll('[data-setcurrent-task]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const agentId = Number(btn.dataset.setcurrentAgent);
+                const taskId  = Number(btn.dataset.setcurrentTask);
+                State.Agents.setCurrentTask(agentId, taskId);
+            });
+        });
+
+        // Drag-and-drop: reorder the queue by dragging a row, or drop one
+        // onto "Current task" to swap it in (TASK-513 follow-up). Mirrors
+        // board.js's kanban drag pattern (module-level drag state,
+        // dragover/dragleave toggling a hover class, drop doing the write).
+        box.querySelectorAll('.agent-dash-queue-item[draggable="true"]').forEach(li => {
+            const agentId = Number(li.dataset.agentId);
+            const taskId  = Number(li.dataset.taskId);
+
+            li.addEventListener('dragstart', (e) => {
+                _queueDragAgentId = agentId;
+                _queueDragTaskId  = taskId;
+                li.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', String(taskId));
+            });
+
+            li.addEventListener('dragend', () => {
+                li.classList.remove('dragging');
+                _queueDragAgentId = null;
+                _queueDragTaskId  = null;
+                box.querySelectorAll('.agent-dash-queue-item').forEach(x =>
+                    x.classList.remove('drag-over-top', 'drag-over-bottom'));
+                box.querySelectorAll('.agent-dash-current-dropzone').forEach(x =>
+                    x.classList.remove('drag-over'));
+            });
+
+            li.addEventListener('dragover', (e) => {
+                if (_queueDragAgentId !== agentId || _queueDragTaskId == null) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                const rect  = li.getBoundingClientRect();
+                const isTop = e.clientY < rect.top + rect.height / 2;
+                li.classList.toggle('drag-over-top', isTop);
+                li.classList.toggle('drag-over-bottom', !isTop);
+            });
+
+            li.addEventListener('dragleave', () => {
+                li.classList.remove('drag-over-top', 'drag-over-bottom');
+            });
+
+            li.addEventListener('drop', (e) => {
+                e.preventDefault();
+                li.classList.remove('drag-over-top', 'drag-over-bottom');
+                if (_queueDragAgentId !== agentId || _queueDragTaskId == null) return;
+                const dragId = _queueDragTaskId;
+                if (dragId === taskId) return;
+
+                // Reorders against the full queue (data-full-queue), not the
+                // DOM's possibly-collapsed slice, so a drop lands correctly
+                // even with "+N more" still collapsed.
+                const ul  = li.closest('.agent-dash-queue');
+                const ids = (ul?.dataset.fullQueue || '').split(',').filter(Boolean).map(Number);
+                const rect  = li.getBoundingClientRect();
+                const isTop = e.clientY < rect.top + rect.height / 2;
+
+                const from = ids.indexOf(dragId);
+                if (from !== -1) ids.splice(from, 1);
+                let to = ids.indexOf(taskId);
+                if (to === -1) to = ids.length;
+                if (!isTop) to += 1;
+                ids.splice(to, 0, dragId);
+
+                State.Agents.setQueueOrder(agentId, ids);
+            });
+        });
+
+        box.querySelectorAll('[data-current-dropzone]').forEach(zone => {
+            const agentId = Number(zone.dataset.currentDropzone);
+
+            zone.addEventListener('dragover', (e) => {
+                if (_queueDragAgentId !== agentId || _queueDragTaskId == null) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                zone.classList.add('drag-over');
+            });
+
+            zone.addEventListener('dragleave', (e) => {
+                if (!zone.contains(e.relatedTarget)) zone.classList.remove('drag-over');
+            });
+
+            zone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                zone.classList.remove('drag-over');
+                if (_queueDragAgentId !== agentId || _queueDragTaskId == null) return;
+                State.Agents.setCurrentTask(agentId, _queueDragTaskId);
             });
         });
     }

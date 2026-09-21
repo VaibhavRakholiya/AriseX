@@ -955,6 +955,22 @@ const State = (() => {
     }
 
     /**
+     * The reverse of moveToInProgressColumn: when a task is bumped off being
+     * an agent's active work by a manual "make current" swap (TASK-513
+     * follow-up), send it back to "To Do" so it reappears in the queue
+     * listing (queueForAgent only shows tasks actually sitting in "To Do")
+     * instead of silently vanishing from the dashboard mid-"In Progress".
+     * Same best-effort, silent no-op if the project has no such column.
+     */
+    function moveToToDoColumn(task) {
+        if (!task) return;
+        const proj = _data.projects.find(p => p.id == task.projectId);
+        if (!proj) return;
+        const col = (proj.columns || []).find(c => String(c.name).trim().toLowerCase() === 'to do');
+        if (col && task.columnId !== col.id) task.columnId = col.id;
+    }
+
+    /**
      * A task sitting in a column literally named "Backlog" is assigned but
      * not ready — several real projects here use it as the stage before
      * "To Do". It stays assigned to the agent and keeps its place once moved
@@ -1277,6 +1293,73 @@ const State = (() => {
 
             save();
             emit('tasks:changed', { type: 'reorder' });
+            return true;
+        },
+
+        /**
+         * Drag-and-drop reorder from the Agent Activity tab: `orderedTaskIds`
+         * is the queue's full new order (drag source computes it against the
+         * full list, not just whatever's visible under a "+N more" preview,
+         * so a drop still lands correctly with the list collapsed). Ids not
+         * currently in this agent's queue are ignored — a stale drop from a
+         * card that changed underneath the drag is a silent no-op rather than
+         * corrupting unrelated tasks.
+         */
+        setQueueOrder(agentId, orderedTaskIds) {
+            const agent = this.get(agentId);
+            if (!agent) return false;
+            const byId = new Map(queueForAgent(agentId, agent.currentTaskId).map(t => [t.id, t]));
+            if (!byId.size) return false;
+
+            let changed = false;
+            let i = 0;
+            (orderedTaskIds || []).forEach(id => {
+                const t = byId.get(id);
+                if (!t) return;
+                const order = (++i) * 1000;
+                if (t.queueOrder !== order) changed = true;
+                t.queueOrder = order;
+            });
+            if (!changed) return false;
+
+            save();
+            emit('tasks:changed', { type: 'reorder' });
+            return true;
+        },
+
+        /**
+         * Swap which task an agent is actively on (TASK-513 follow-up: "allow
+         * me to change current task as well") — promotes a queued task to
+         * `currentTaskId` and, if there was one, bumps the previous current
+         * task back into the queue instead of leaving it orphaned: sent back
+         * to "To Do" (so it reappears in queueForAgent's listing, which only
+         * shows that column) and given the lowest queueOrder in the queue so
+         * it lands at the front, same place a human would expect the task
+         * they just stepped away from to be.
+         */
+        setCurrentTask(agentId, taskId) {
+            const agent = this.get(agentId);
+            if (!agent) return false;
+            if (agent.currentTaskId == taskId) return false;
+            const task = _data.tasks.find(t => t.id == taskId && t.agentId == agentId && t.agentDoneAt == null);
+            if (!task) return false;
+
+            const prevCurrent = agent.currentTaskId != null
+                ? _data.tasks.find(t => t.id == agent.currentTaskId) : null;
+
+            agent.currentTaskId = task.id;
+            if (agent.sessionActive) moveToInProgressColumn(task);
+
+            if (prevCurrent) {
+                moveToToDoColumn(prevCurrent);
+                const rest = queueForAgent(agentId, task.id).filter(t => t.id !== prevCurrent.id);
+                const lowest = rest.reduce((min, t) => t.queueOrder != null ? Math.min(min, t.queueOrder) : min, 0);
+                prevCurrent.queueOrder = lowest - 1000;
+            }
+
+            save();
+            emit('agents:changed', agent);
+            emit('tasks:changed', { type: 'update', task });
             return true;
         },
     };
