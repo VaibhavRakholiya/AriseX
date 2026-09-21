@@ -31,6 +31,28 @@ const Agents = (() => {
     let _queueDragAgentId = null;
     let _queueDragTaskId  = null;
 
+    // How often the Agent Activity tab pulls fresh agent/task state from
+    // Firebase while a browser tab is just sitting open (TASK-650). Mirrors
+    // chat.js's POLL_MS/_pollTimer pattern — without this, an agent working
+    // through another live session (a second terminal, the MCP daemon) only
+    // ever shows as "Working" here after a manual "Refresh from Cloud" or a
+    // full page reload, because the local/loaded-in-memory State never knew
+    // anything changed. The Settings agent list has the same problem, so the
+    // poll refreshes both.
+    const AGENT_POLL_MS = 30000;
+    let _agentPollTimer = null;
+
+    function rerenderDashboardIfActive() {
+        if (document.getElementById('view-agents')?.classList.contains('active')) renderDashboard();
+    }
+
+    async function poll() {
+        const ok = await State.loadFromFirebase();
+        if (!ok) return;
+        renderSettingsList();
+        rerenderDashboardIfActive();
+    }
+
     const escHtml = (s) => UI.escHtml(s);
 
     // Avatars are cropped to a square and downscaled before being stored as a
@@ -771,11 +793,10 @@ const Agents = (() => {
             if (e.target === document.getElementById('avatarCropModalScrim')) closeCropModal();
         });
 
-        const rerenderDashboard = () => {
-            if (document.getElementById('view-agents')?.classList.contains('active')) renderDashboard();
-        };
-        State.on('agents:changed', () => { renderSettingsList(); rerenderDashboard(); });
-        State.on('tasks:changed', rerenderDashboard);
+        State.on('agents:changed', () => { renderSettingsList(); rerenderDashboardIfActive(); });
+        State.on('tasks:changed', rerenderDashboardIfActive);
+
+        _agentPollTimer = setInterval(poll, AGENT_POLL_MS);
     }
 
     return {
