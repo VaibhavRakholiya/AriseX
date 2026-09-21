@@ -193,11 +193,25 @@ export function isToDoColumn(task, projects) {
  * the column check — omitting it means nothing passes. Mirrors js/state.js
  * queueForAgent.
  */
+/**
+ * Oldest-assignment-first, unless the user manually reordered the queue from
+ * the web UI's Agent Activity tab (TASK-513) — a task carrying a
+ * `queueOrder` sorts by that instead, ahead of anything untouched. Mirrors
+ * js/state.js queueSortCompare.
+ */
+function queueSortCompare(a, b) {
+    const ao = a.queueOrder, bo = b.queueOrder;
+    if (ao != null && bo != null) return ao - bo;
+    if (ao != null) return -1;
+    if (bo != null) return 1;
+    return new Date(a.assignedAt || a.createdAt) - new Date(b.assignedAt || b.createdAt);
+}
+
 export function queueForAgent(tasks, agentId, excludeTaskId, projects) {
     return (tasks || [])
         .filter(t => t.agentId == agentId && t.agentDoneAt == null && t.id != excludeTaskId
             && isToDoColumn(hydrateTask(t), projects))
-        .sort((a, b) => new Date(a.assignedAt || a.createdAt) - new Date(b.assignedAt || b.createdAt));
+        .sort(queueSortCompare);
 }
 
 /**

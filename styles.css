@@ -4139,6 +4139,56 @@ input.form-control--inline { padding: 5px 10px; }
     flex-direction: column;
 }
 
+.agent-dash-queue-item {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-1);
+}
+
+.agent-dash-queue-item .agent-dash-task { padding: var(--sp-1) 0; }
+
+.agent-dash-queue-move-group {
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+}
+
+.agent-dash-queue-move {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 14px;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    font-size: 10px;
+    border-radius: var(--radius-sm);
+}
+
+.agent-dash-queue-move:hover:not(:disabled) {
+    color: var(--text);
+    background: var(--surface-hover);
+}
+
+.agent-dash-queue-move:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.agent-dash-queue-toggle {
+    background: none;
+    border: none;
+    padding: var(--sp-1) 0;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    cursor: pointer;
+}
+
+.agent-dash-queue-toggle:hover { color: var(--primary); }
+
 .agent-row-main {
     min-width: 0;
     flex: 1;

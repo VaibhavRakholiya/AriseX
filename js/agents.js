@@ -21,6 +21,10 @@ const Agents = (() => {
     let _selectedColor  = '#6366f1';
     let _selectedAvatar = '';
 
+    // Which agents' Agent Activity queues are currently showing more than the
+    // default 4-item preview (TASK-513) — session-only UI state, not synced.
+    const _expandedQueues = new Set();
+
     const escHtml = (s) => UI.escHtml(s);
 
     // Avatars are cropped to a square and downscaled before being stored as a
@@ -391,12 +395,28 @@ const Agents = (() => {
                    </button>`
                 : `<p class="agent-dash-empty">Nothing in progress</p>`;
 
+            // Reordering (TASK-513) needs each item's real position in the
+            // full queue, not just the visible slice, so the up/down buttons
+            // stay correct whether or not the "+N more" preview is expanded.
+            const expanded = _expandedQueues.has(a.id);
+            const visible  = expanded ? queue : queue.slice(0, 4);
             const queueHtml = queue.length
-                ? `<ul class="agent-dash-queue">${queue.slice(0, 4).map(t => `
-                       <li><button type="button" class="agent-dash-task" data-open-task="${t.id}">
-                           ${taskLine(t)}
-                       </button></li>`).join('')}
-                       ${queue.length > 4 ? `<li class="text-muted text-sm">+${queue.length - 4} more</li>` : ''}
+                ? `<ul class="agent-dash-queue">${visible.map((t, i) => {
+                       const idx = queue.indexOf(t);
+                       return `
+                       <li class="agent-dash-queue-item">
+                           <div class="agent-dash-queue-move-group">
+                               <button type="button" class="agent-dash-queue-move" data-reorder-agent="${a.id}" data-reorder-task="${t.id}" data-reorder-dir="up" title="Move up" aria-label="Move up in queue" ${idx === 0 ? 'disabled' : ''}><i class="fa-solid fa-chevron-up"></i></button>
+                               <button type="button" class="agent-dash-queue-move" data-reorder-agent="${a.id}" data-reorder-task="${t.id}" data-reorder-dir="down" title="Move down" aria-label="Move down in queue" ${idx === queue.length - 1 ? 'disabled' : ''}><i class="fa-solid fa-chevron-down"></i></button>
+                           </div>
+                           <button type="button" class="agent-dash-task" data-open-task="${t.id}">
+                               ${taskLine(t)}
+                           </button>
+                       </li>`;
+                   }).join('')}
+                       ${queue.length > 4
+                           ? `<li><button type="button" class="agent-dash-queue-toggle" data-toggle-queue="${a.id}">${expanded ? 'Show less' : `+${queue.length - 4} more`}</button></li>`
+                           : ''}
                    </ul>`
                 : `<p class="agent-dash-empty">Queue is empty</p>`;
 
@@ -427,6 +447,24 @@ const Agents = (() => {
 
         box.querySelectorAll('[data-open-task]').forEach(el => {
             el.addEventListener('click', () => UI.openTaskPanel(parseInt(el.dataset.openTask, 10)));
+        });
+
+        box.querySelectorAll('[data-toggle-queue]').forEach(el => {
+            el.addEventListener('click', () => {
+                const id = Number(el.dataset.toggleQueue);
+                if (_expandedQueues.has(id)) _expandedQueues.delete(id); else _expandedQueues.add(id);
+                renderDashboard();
+            });
+        });
+
+        box.querySelectorAll('[data-reorder-task]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const agentId = Number(btn.dataset.reorderAgent);
+                const taskId  = Number(btn.dataset.reorderTask);
+                const dir     = btn.dataset.reorderDir;
+                State.Agents.reorderQueueMove(agentId, taskId, dir);
+            });
         });
     }
 

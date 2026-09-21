@@ -917,10 +917,26 @@ const State = (() => {
      * both sides read from. Superseded the narrower Done-only check from
      * TASK-605 — "To Do" is a positive allowlist that already covers it.
      */
+    /**
+     * Oldest-assignment-first, unless the user has manually reordered the
+     * queue from the Agent Activity tab (TASK-513) — a task carrying a
+     * `queueOrder` sorts by that instead, ahead of anything untouched, which
+     * keeps a manual reorder sticky instead of being nudged back into place
+     * every time an older task gets assigned. Mirrors
+     * mcp-server/src/domain.js queueSortCompare.
+     */
+    function queueSortCompare(a, b) {
+        const ao = a.queueOrder, bo = b.queueOrder;
+        if (ao != null && bo != null) return ao - bo;
+        if (ao != null) return -1;
+        if (bo != null) return 1;
+        return new Date(a.assignedAt || a.createdAt) - new Date(b.assignedAt || b.createdAt);
+    }
+
     function queueForAgent(agentId, excludeTaskId) {
         return _data.tasks
             .filter(t => t.agentId == agentId && t.agentDoneAt == null && t.id != excludeTaskId && isToDoColumn(t))
-            .sort((a, b) => new Date(a.assignedAt || a.createdAt) - new Date(b.assignedAt || b.createdAt));
+            .sort(queueSortCompare);
     }
 
     /**
@@ -1236,6 +1252,32 @@ const State = (() => {
         queue(id) {
             const agent = this.get(id);
             return agent ? queueForAgent(id, agent.currentTaskId) : [];
+        },
+
+        /**
+         * Move one queued task up or down relative to its neighbors, from the
+         * Agent Activity tab (TASK-513). Stamps the *entire* current queue
+         * with fresh, evenly-spaced `queueOrder` values so the new order
+         * sticks instead of only the moved task getting one — a partial stamp
+         * would otherwise leave it racing against every still-unordered task's
+         * assignedAt, which is exactly what queueSortCompare treats as "no
+         * preference yet".
+         */
+        reorderQueueMove(agentId, taskId, direction) {
+            const agent = this.get(agentId);
+            if (!agent) return false;
+            const list = queueForAgent(agentId, agent.currentTaskId);
+            const idx = list.findIndex(t => t.id == taskId);
+            if (idx === -1) return false;
+            const swapWith = direction === 'up' ? idx - 1 : idx + 1;
+            if (swapWith < 0 || swapWith >= list.length) return false;
+
+            [list[idx], list[swapWith]] = [list[swapWith], list[idx]];
+            list.forEach((t, i) => { t.queueOrder = (i + 1) * 1000; });
+
+            save();
+            emit('tasks:changed', { type: 'reorder' });
+            return true;
         },
     };
 
