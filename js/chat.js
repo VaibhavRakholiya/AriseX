@@ -76,6 +76,28 @@ const Chat = (() => {
         </div>`;
     }
 
+    /**
+     * Show a system notification, routed through the already-registered
+     * Service Worker when one is available (TASK-648). Mobile browsers —
+     * Android Chrome in particular — throw ("Illegal constructor:
+     * Notifications on Android require Push messaging via a Service
+     * Worker") or simply no-op on the page-context `new Notification(...)`
+     * constructor, which is why these never appeared on mobile even with
+     * permission granted; `ServiceWorkerRegistration.showNotification`
+     * accepts the same options and works on both mobile and desktop. Falls
+     * back to the page-context constructor only when no Service Worker is
+     * registered at all (e.g. sw.js failed to register).
+     */
+    function notifySystem(title, options) {
+        if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+            navigator.serviceWorker.ready
+                .then(reg => reg.showNotification(title, options))
+                .catch(() => { try { new Notification(title, options); } catch { /* unsupported here too */ } });
+            return;
+        }
+        try { new Notification(title, options); } catch { /* not supported */ }
+    }
+
     /** Toast + desktop Notification for messages this tab hasn't seen before. */
     function notifyNew(prevMessages, nextMessages) {
         const seenIds = new Set(prevMessages.map(m => m.id));
@@ -97,10 +119,11 @@ const Chat = (() => {
             const proj = State.Projects.get(m.projectId);
             const isQuestion = m.authorType === 'question';
             const title = proj ? `${proj.name} — ${m.author}` : m.author;
-            new Notification(isQuestion ? `❓ ${title}` : title, {
+            notifySystem(isQuestion ? `❓ ${title}` : title, {
                 body: m.text,
                 tag:  `flowboard-chat-${m.id}`,
                 requireInteraction: isQuestion,
+                icon: 'icons/icon.png',
             });
         });
     }

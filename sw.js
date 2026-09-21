@@ -48,6 +48,22 @@ self.addEventListener('activate', event => {
   );
 });
 
+// Notification click — focus an already-open tab if there is one, otherwise
+// open a new one. Without this, a notification shown via showNotification
+// (TASK-648) just sits there when tapped on mobile, since there's no default
+// "open the app" behavior for Service Worker notifications the way there is
+// for the page-context Notification constructor on desktop.
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientsArr => {
+      const existing = clientsArr.find(c => 'focus' in c);
+      if (existing) return existing.focus();
+      return self.clients.openWindow('./');
+    })
+  );
+});
+
 // Fetch Event - Network First with Cache Fallback strategy
 self.addEventListener('fetch', event => {
   // Skip cross-origin requests, like those to Firebase
