@@ -432,7 +432,12 @@
             <div class="modal-body">
                 <div class="form-group">
                     <label class="form-label">Title <span class="form-required" aria-hidden="true">*</span></label>
-                    <input class="form-control" type="text" id="taskModalTitleInput" placeholder="What needs to be done?" maxlength="200" />
+                    <div class="title-input-wrap">
+                        <input class="form-control" type="text" id="taskModalTitleInput" placeholder="What needs to be done?" maxlength="200" />
+                        <button type="button" class="desc-tool-btn desc-tool-speech title-speech-btn" id="taskModalTitleSpeech" title="Speech to text" aria-label="Speech to text" aria-pressed="false">
+                            <i class="fa-solid fa-microphone"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Description</label>

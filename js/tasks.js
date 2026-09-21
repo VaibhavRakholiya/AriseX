@@ -685,6 +685,10 @@ const Tasks = (() => {
             document.getElementById('taskModalDescSpeech'),
             document.getElementById('taskModalDesc')
         );
+        SpeechToText.attach(
+            document.getElementById('taskModalTitleSpeech'),
+            document.getElementById('taskModalTitleInput')
+        );
 
         // My Tasks filter chips
         document.querySelectorAll('[data-myfilter]').forEach(btn => {

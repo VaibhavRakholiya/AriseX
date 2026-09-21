@@ -1966,6 +1966,39 @@ body.task-panel-fullscreen #content-area {
     background: var(--input-bg-focus);
 }
 
+.panel-title-row {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--sp-1);
+    margin-bottom: var(--sp-2);
+}
+
+.panel-title-row .panel-title {
+    flex: 1;
+    margin-bottom: 0;
+    min-width: 0;
+}
+
+.panel-title-speech {
+    flex-shrink: 0;
+    margin-top: var(--sp-2);
+}
+
+.title-input-wrap {
+    position: relative;
+}
+
+.title-input-wrap .form-control {
+    padding-right: 40px;
+}
+
+.title-speech-btn {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
 .panel-meta-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;

@@ -496,11 +496,16 @@ const UI = (() => {
 
         body.innerHTML = `
             <!-- Title -->
-            <div class="panel-title"
-                 id="panelTitleEl-${tid}"
-                 contenteditable="true"
-                 spellcheck="false"
-                 data-task-id="${task.id}">${escHtml(task.title)}</div>
+            <div class="panel-title-row">
+                <div class="panel-title"
+                     id="panelTitleEl-${tid}"
+                     contenteditable="true"
+                     spellcheck="false"
+                     data-task-id="${task.id}">${escHtml(task.title)}</div>
+                <button type="button" class="desc-tool-btn desc-tool-speech panel-title-speech" id="panelTitleSpeech-${tid}" title="Speech to text" aria-label="Speech to text" aria-pressed="false">
+                    <i class="fa-solid fa-microphone"></i>
+                </button>
+            </div>
 
             <!-- Description -->
             <div class="panel-section panel-section-description-top">
@@ -697,6 +702,9 @@ const UI = (() => {
                 }
             });
             titleEl.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); titleEl.blur(); } });
+
+            const titleSpeechBtn = q('panelTitleSpeech');
+            if (titleSpeechBtn) SpeechToText.attach(titleSpeechBtn, titleEl);
         }
 
         // Status change

@@ -21,7 +21,7 @@ const SpeechToText = (() => {
         if (!el || !text) return;
 
         let insert = text;
-        if (el.tagName === 'TEXTAREA') {
+        if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
             const start = el.selectionStart ?? el.value.length;
             const end = el.selectionEnd ?? start;
             const val = el.value;
