@@ -1321,6 +1321,24 @@ const State = (() => {
         },
 
         /**
+         * Manually force the Working/Idle pill from the Settings list
+         * (TASK-661), bypassing the sessionCount arithmetic that start/end
+         * session use to track concurrent per-repo terminals — this is one
+         * explicit click, not a session starting or ending, so it sets the
+         * live flag directly rather than incrementing/decrementing a count
+         * that no real session opened or closed.
+         */
+        setSessionActive(agentId, active) {
+            const agent = this.get(agentId);
+            if (!agent) return null;
+            agent.sessionCount  = active ? Math.max(1, agent.sessionCount || 0) : 0;
+            agent.sessionActive = active;
+            save();
+            emit('agents:changed', agent);
+            return { agent };
+        },
+
+        /**
          * Idle / working, and how deep its queue is — what the Settings row
          * shows. `working` stays assignment-based (mirrors
          * mcp-server/src/domain.js agentStatus); `live` is whether a

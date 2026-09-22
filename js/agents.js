@@ -343,7 +343,8 @@ const Agents = (() => {
             // "Working" requires a live session, not just a claimed task
             // (TASK-574) — an assigned-but-nobody's-there task still reads
             // as Idle here.
-            const statusHtml = (status.working && status.live)
+            const isWorking = status.working && status.live;
+            const statusHtml = isWorking
                 ? `<span class="agent-row-pill agent-row-pill--working" title="${escHtml(status.currentTask?.title || '')}">
                        Working on ${escHtml(status.currentTask?.taskKey || 'a task')}
                    </span>${status.queueLength ? `<span class="agent-row-pill">+${status.queueLength} queued</span>` : ''}`
@@ -365,6 +366,11 @@ const Agents = (() => {
                     </div>
                 </div>
                 <div class="agent-row-count text-muted text-sm">${count} task${count === 1 ? '' : 's'}</div>
+                <button class="btn btn-ghost btn-sm" data-agent-toggle-status="${a.id}" data-next-active="${isWorking ? '0' : '1'}"
+                        title="${isWorking ? 'Mark as Idle' : 'Mark as Working'}">
+                    <i class="fa-solid ${isWorking ? 'fa-moon' : 'fa-bolt'}" aria-hidden="true"></i>
+                    ${isWorking ? 'Mark Idle' : 'Mark Working'}
+                </button>
                 <button class="btn btn-ghost btn-sm" data-agent-edit="${a.id}">
                     <i class="fa-solid fa-pen" aria-hidden="true"></i> Edit
                 </button>
@@ -379,6 +385,11 @@ const Agents = (() => {
         });
         box.querySelectorAll('[data-agent-delete]').forEach(btn => {
             btn.addEventListener('click', () => confirmDelete(Number(btn.dataset.agentDelete)));
+        });
+        box.querySelectorAll('[data-agent-toggle-status]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                State.Agents.setSessionActive(Number(btn.dataset.agentToggleStatus), btn.dataset.nextActive === '1');
+            });
         });
     }
 
