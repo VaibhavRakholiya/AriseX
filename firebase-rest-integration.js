@@ -7,10 +7,14 @@ class FirebaseRESTIntegration {
         this.databaseURL = "https://tictac-405e5-default-rtdb.firebaseio.com";
         this.isOnline = navigator.onLine;
         this.isConnected = false;
-        
+
+        // The most recent remote snapshot this tab has actually seen for each
+        // collection, keyed by dataType — see saveData()'s merge logic below.
+        this._lastKnown = {};
+
         // Initialize network listeners
         this.initNetworkListeners();
-        
+
         // Test connection
         this.testConnection();
     }
@@ -68,8 +72,96 @@ class FirebaseRESTIntegration {
         }
     }
 
+    // RTDB may hand back an array, a numeric-keyed object, or null. Mirrors
+    // mcp-server/src/store.js coerceArray.
+    _coerceArray(v) {
+        if (v == null) return [];
+        if (Array.isArray(v)) return v.filter(x => x != null);
+        if (typeof v === 'object') {
+            return Object.keys(v)
+                .sort((a, b) => Number(a) - Number(b))
+                .map(k => v[k])
+                .filter(x => x != null);
+        }
+        return [];
+    }
+
     // Database Methods using REST API
+    //
+    // A blind `PUT` of this tab's whole in-memory collection used to be how
+    // every save worked. That is how the board lost tasks: this tab's local
+    // array reflects only what it has loaded/edited itself, so a task an MCP
+    // agent (or another tab) created after this tab's last load simply isn't
+    // in it — and a blind overwrite deletes it from Firebase along with
+    // pushing this tab's own changes. For an array collection (tasks,
+    // agents, projects — every current caller), this now does a
+    // compare-and-set merge instead: records this tab doesn't know about get
+    // preserved rather than wiped, while an id this tab previously saw and
+    // has since dropped locally is still treated as an intentional deletion
+    // (see `_lastKnown`, the baseline that tells those two cases apart).
     async saveData(dataType, data) {
+        if (!Array.isArray(data)) return this._saveDataLegacy(dataType, data);
+
+        const url = `${this.databaseURL}/timetracker/${dataType}.json`;
+        const maxRetries = 4;
+        const local = data.filter(r => r != null);
+
+        try {
+            for (let attempt = 0; attempt <= maxRetries; attempt++) {
+                const getRes = await fetch(await this.withAuth(url), {
+                    headers: { 'X-Firebase-ETag': 'true' },
+                });
+                if (!getRes.ok) throw new Error(`HTTP ${getRes.status}: ${getRes.statusText}`);
+                const etag = getRes.headers.get('etag');
+                const remote = this._coerceArray(await getRes.json());
+
+                const baselineIds = new Set((this._lastKnown[dataType] || []).map(r => r.id));
+                const localIds = new Set(local.map(r => r.id));
+                // In Firebase, not in this save, and not something this tab
+                // ever saw before — i.e. created elsewhere since this tab's
+                // last load. Keep it. An id this tab HAS seen before and no
+                // longer has locally is a real local deletion, not this case.
+                const preserved = remote.filter(r => !localIds.has(r.id) && !baselineIds.has(r.id));
+                const merged = [...local, ...preserved];
+
+                const putRes = await fetch(await this.withAuth(url), {
+                    method:  'PUT',
+                    headers: { 'Content-Type': 'application/json', 'if-match': etag },
+                    body:    JSON.stringify(merged),
+                });
+
+                if (putRes.ok) {
+                    this._lastKnown[dataType] = merged;
+                    localStorage.setItem(`${dataType}_backup`, JSON.stringify(merged));
+                    console.log(`✅ Data saved to Firebase via REST: ${dataType}`);
+                    return true;
+                }
+
+                if (putRes.status === 412) {
+                    // Someone else wrote in between — back off and redo the
+                    // merge against their fresh version.
+                    const wait = 100 * (attempt + 1) + Math.floor(Math.random() * 120);
+                    await new Promise(r => setTimeout(r, wait));
+                    continue;
+                }
+
+                const errorText = await putRes.text().catch(() => '');
+                throw new Error(`HTTP ${putRes.status}: ${putRes.statusText} ${errorText}`.trim());
+            }
+            throw new Error(`${dataType} is being written too rapidly by something else. Nothing was written.`);
+        } catch (error) {
+            console.error(`❌ Error saving ${dataType} to Firebase:`, error);
+            // Fallback to localStorage
+            localStorage.setItem(`${dataType}_backup`, JSON.stringify(local));
+            this.showToast(`Saved locally (offline): ${dataType}`, 'warning');
+            return false;
+        }
+    }
+
+    // Original blind-overwrite path, kept for any non-array payload (no
+    // current caller passes one — every collection this app syncs is a
+    // record array with an `id`, which is what the merge above needs).
+    async _saveDataLegacy(dataType, data) {
         try {
             const url = `${this.databaseURL}/timetracker/${dataType}.json`;
             console.log(`💾 Saving ${dataType} to: ${url}`);
@@ -97,7 +189,7 @@ class FirebaseRESTIntegration {
             }
         } catch (error) {
             console.error(`❌ Error saving ${dataType} to Firebase:`, error);
-            
+
             // Fallback to localStorage
             localStorage.setItem(`${dataType}_backup`, JSON.stringify(data));
             this.showToast(`Saved locally (offline): ${dataType}`, 'warning');
@@ -127,10 +219,15 @@ class FirebaseRESTIntegration {
                     // Update localStorage backup
                     localStorage.setItem(`${dataType}_backup`, JSON.stringify(data));
                     console.log(`✅ Data loaded from Firebase via REST: ${dataType}`);
+                    // This is now the baseline saveData() diffs against to tell
+                    // "created elsewhere, preserve it" apart from "I deleted
+                    // this locally, drop it" — see saveData()'s comment.
+                    if (Array.isArray(data)) this._lastKnown[dataType] = data;
                     return data;
                 } else {
                     // Return default data if no data exists
                     console.log(`ℹ️  No data found in Firebase for: ${dataType}, using defaults`);
+                    this._lastKnown[dataType] = [];
                     return this.getDefaultData(dataType);
                 }
             } else {
@@ -144,7 +241,9 @@ class FirebaseRESTIntegration {
             const backup = localStorage.getItem(`${dataType}_backup`);
             if (backup) {
                 console.log(`📱 Using local backup for: ${dataType}`);
-                return JSON.parse(backup);
+                const parsed = JSON.parse(backup);
+                if (Array.isArray(parsed)) this._lastKnown[dataType] = parsed;
+                return parsed;
             } else {
                 console.log(`🆕 Using default data for: ${dataType}`);
                 return this.getDefaultData(dataType);
