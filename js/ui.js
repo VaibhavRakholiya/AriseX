@@ -1129,9 +1129,9 @@ const UI = (() => {
             cleanup();
             toggleTaskPanelFullscreen(task.id);
         });
-        menu.querySelector('#pmDuplicate').addEventListener('click', () => {
+        menu.querySelector('#pmDuplicate').addEventListener('click', async () => {
             cleanup();
-            const copy = State.Tasks.duplicate(task.id);
+            const copy = await State.Tasks.duplicate(task.id);
             if (!copy) {
                 toast('Could not duplicate task', 'error');
                 return;

@@ -607,7 +607,7 @@ const Tasks = (() => {
             .map(el => el.dataset.labelId);
     }
 
-    function saveTask() {
+    async function saveTask() {
         const titleInput = document.getElementById('taskModalTitleInput');
         const title      = titleInput.value.trim();
         if (!title) {
@@ -637,7 +637,7 @@ const Tasks = (() => {
             ...Agents.parseAssigneeValue(document.getElementById('taskModalAssignee').value),
         };
 
-        const created = State.Tasks.create(fields);
+        const created = await State.Tasks.create(fields);
         if (!created) {
             UI.toast('A project is required', 'error');
             return;

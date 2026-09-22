@@ -204,9 +204,9 @@ const Projects = (() => {
         menu.querySelector('#ctxEdit').addEventListener('click', () => {
             openModal(projectId); cleanup();
         });
-        menu.querySelector('#ctxDuplicate').addEventListener('click', () => {
+        menu.querySelector('#ctxDuplicate').addEventListener('click', async () => {
             cleanup();
-            const copy = State.Projects.duplicate(projectId);
+            const copy = await State.Projects.duplicate(projectId);
             if (!copy) {
                 UI.toast('Could not duplicate project', 'error');
                 return;

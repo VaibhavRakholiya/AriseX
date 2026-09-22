@@ -435,9 +435,35 @@ const State = (() => {
     }
 
     // ── Task key generator ────────────────────────────────
-    function nextTaskKey() {
-        _taskCounter++;
-        return `TASK-${_taskCounter}`;
+    /**
+     * Reserve `count` sequential "TASK-N" keys through Firebase's shared,
+     * CAS-protected counter (firebase-rest-integration.js
+     * allocateTaskKeyNumbers — mirrors mcp-server/src/store.js of the same
+     * name). Minting keys from this tab's own `_taskCounter` alone is how
+     * the board ended up with duplicate live TASK-513/TASK-505 keys: this
+     * tab's counter reflects whatever was in localStorage at load time, and
+     * an MCP agent (or another tab) can create tasks against fresher data
+     * in between without this tab ever finding out.
+     *
+     * Falls back to the local counter when offline/Firebase is unreachable,
+     * so task creation keeps working — at the cost of the same collision
+     * risk once back online, which is an acceptable offline trade-off here.
+     */
+    async function nextTaskKeys(count) {
+        if (window.firebaseRESTIntegration) {
+            try {
+                const numbers = await window.firebaseRESTIntegration.allocateTaskKeyNumbers(count);
+                _taskCounter = Math.max(_taskCounter, numbers[numbers.length - 1]);
+                return numbers.map((n) => `TASK-${n}`);
+            } catch (e) {
+                console.warn('State: Firebase task-key allocation failed, falling back to local counter', e);
+            }
+        }
+        return Array.from({ length: count }, () => `TASK-${++_taskCounter}`);
+    }
+
+    async function nextTaskKey() {
+        return (await nextTaskKeys(1))[0];
     }
 
     // ── Project accessors ─────────────────────────────────
@@ -524,7 +550,7 @@ const State = (() => {
          * Clone a project (columns, labels, description, color) and all of its tasks.
          * Column / project-label IDs are remapped.
          */
-        duplicate(sourceId) {
+        async duplicate(sourceId) {
             const src = this.get(sourceId);
             if (!src) return null;
 
@@ -569,15 +595,18 @@ const State = (() => {
 
             const firstColId = newColumns[0].id;
             const sourceTasks = _data.tasks.filter(t => t.projectId === sourceId);
+            // One shared-counter round trip for the whole batch instead of one
+            // per task — same guarantee, without serializing N Firebase calls.
+            const newTaskKeys = sourceTasks.length ? await nextTaskKeys(sourceTasks.length) : [];
 
-            sourceTasks.forEach((t) => {
+            sourceTasks.forEach((t, i) => {
                 const mappedCol = t.columnId && colMap[t.columnId] ? colMap[t.columnId] : firstColId;
                 const newLabelIds = (t.labels || []).map((lid) =>
                     (labelMap[lid] !== undefined ? labelMap[lid] : lid)
                 );
                 const newTask = {
                     id:            nextId(),
-                    taskKey:       nextTaskKey(),
+                    taskKey:       newTaskKeys[i],
                     projectId:     newProj.id,
                     columnId:      mappedCol,
                     title:         t.title,
@@ -617,7 +646,7 @@ const State = (() => {
         get(id)              { return _data.tasks.find(t => t.id == id); },
         byProject(projectId) { return _data.tasks.filter(t => t.projectId === projectId); },
 
-        create(fields) {
+        async create(fields) {
             if (!taskHasValidProject({ projectId: fields.projectId })) {
                 console.warn('State: cannot create task without a valid project');
                 return null;
@@ -631,7 +660,7 @@ const State = (() => {
 
             const task = {
                 id:            nextTaskId(),
-                taskKey:       nextTaskKey(),
+                taskKey:       await nextTaskKey(),
                 projectId:     fields.projectId,
                 columnId:      fields.columnId    || null,
                 title:         fields.title       || 'Untitled Task',
@@ -858,7 +887,7 @@ const State = (() => {
          * Clone a task in the same project/column (new id, key, subtasks, comments).
          * Timer and logged time are not copied.
          */
-        duplicate(id) {
+        async duplicate(id) {
             const src = this.get(id);
             if (!src) return null;
 
@@ -873,7 +902,7 @@ const State = (() => {
 
             const newTask = {
                 id:            nextId(),
-                taskKey:       nextTaskKey(),
+                taskKey:       await nextTaskKey(),
                 projectId:     src.projectId ?? null,
                 columnId:      src.columnId ?? null,
                 title:         newTitle,

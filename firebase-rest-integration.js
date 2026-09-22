@@ -152,6 +152,60 @@ class FirebaseRESTIntegration {
         }
     }
 
+    // Atomically reserve `count` sequential task-key numbers via Firebase's
+    // ETag compare-and-set (mirrors mcp-server/src/store.js
+    // allocateTaskKeyNumbers). The browser used to mint "TASK-N" locally by
+    // scanning its own possibly-stale localStorage copy of the task list,
+    // which is how the board ended up with two live TASK-513s: an MCP agent
+    // and a browser tab each computed "next" from data the other one had
+    // already moved past. Routing both writers through the same shared
+    // counter node closes that gap.
+    async allocateTaskKeyNumbers(count = 1) {
+        const metaUrl = `${this.databaseURL}/timetracker/flowboard_meta.json`;
+        const maxRetries = 4;
+
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            const res = await fetch(await this.withAuth(metaUrl), {
+                headers: { 'X-Firebase-ETag': 'true' },
+            });
+            if (!res.ok) throw new Error(`Firebase GET flowboard_meta failed: ${res.status} ${res.statusText}`);
+            const etag = res.headers.get('etag');
+            const meta = (await res.json()) || {};
+
+            let current = Number(meta.taskCounter);
+            if (!Number.isFinite(current)) {
+                const tasks = await this.loadData('flowboard_tasks');
+                current = (Array.isArray(tasks) ? tasks : []).reduce((max, t) => {
+                    const n = parseInt(String(t?.taskKey || '').replace(/\D/g, ''), 10);
+                    return Number.isNaN(n) ? max : Math.max(max, n);
+                }, 0);
+            }
+            const next = current + count;
+
+            const put = await fetch(await this.withAuth(metaUrl), {
+                method:  'PUT',
+                headers: { 'Content-Type': 'application/json', 'if-match': etag },
+                body:    JSON.stringify({ ...meta, taskCounter: next }),
+            });
+
+            if (put.ok) {
+                const start = current + 1;
+                return Array.from({ length: count }, (_, i) => start + i);
+            }
+
+            if (put.status === 412) {
+                const wait = 100 * (attempt + 1) + Math.floor(Math.random() * 120);
+                await new Promise(r => setTimeout(r, wait));
+                continue;
+            }
+
+            const body = await put.text().catch(() => '');
+            throw new Error(`Firebase PUT flowboard_meta failed: ${put.status} ${put.statusText} ${body}`.trim());
+        }
+
+        throw new Error('flowboard_meta task counter is being written too rapidly by something else. Nothing was written.');
+    }
+
     // Real-time listeners using Server-Sent Events (if supported) or polling
     setupRealtimeListener(dataType, callback) {
         console.log(`⏸️ Realtime listener disabled for: ${dataType} (auto-refresh disabled)`);

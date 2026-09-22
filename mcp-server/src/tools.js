@@ -310,10 +310,17 @@ export async function create_task(args) {
 
     const owner = resolveOwner(agents, args);
 
+    // Allocated once, up front: store.mutate's callback can run more than
+    // once on a conflict and must stay side-effect free, but key allocation
+    // is itself already atomic (store.allocateTaskKeyNumbers), so there is
+    // no benefit to redoing it on every retry — and doing so here would
+    // burn a reserved number each time.
+    const [taskKeyNumber] = await store.allocateTaskKeyNumbers(1);
+
     const created = await store.mutate('tasks', (tasks) => {
         const task = {
             id:             D.uniqueId(tasks),
-            taskKey:        D.nextTaskKey(tasks),
+            taskKey:        `TASK-${taskKeyNumber}`,
             projectId:      project.id,
             columnId:       column?.id ?? null,
             title:          String(title).trim(),

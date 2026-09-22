@@ -215,6 +215,19 @@ await check('create_task refuses an unknown column, naming the valid ones', asyn
         /Available: To Do, In Progress, In Review, To Be Tested, Done/);
 });
 
+await check('concurrent create_task calls never mint the same taskKey (TASK-650 duplicate-key follow-up)', async () => {
+    // The bug in production: two writers (an MCP agent and a browser tab, or
+    // two agents) each scanned their own copy of the tasks list for the
+    // current max and added one, so overlapping creates could both compute
+    // the same "next" number. Firing several creates at once is the direct
+    // repro — every taskKey minted here must still be unique.
+    const results = await Promise.all(
+        Array.from({ length: 5 }, (_, i) => T.create_task({ projectId, title: `Race ${i}` }))
+    );
+    const keys = results.map(r => r.task.taskKey);
+    assert.equal(new Set(keys).size, keys.length, `expected 5 unique keys, got ${keys.join(', ')}`);
+});
+
 await check('assign_task by slug sets agentId and mirrors the name', async () => {
     const r = await T.assign_task({ task: task.taskKey, agent: 'bug-triager' });
     assert.equal(r.agentId, agent.id);
