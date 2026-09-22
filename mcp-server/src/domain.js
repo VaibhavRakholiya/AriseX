@@ -312,7 +312,12 @@ export function pickNextForAgent(tasks, agentId, excludeTaskId, projects, prefer
  */
 export function agentStatus(agent, tasks, projects) {
     const current = agent.currentTaskId != null ? (tasks || []).find(t => t.id == agent.currentTaskId) || null : null;
-    const working = current != null && !isToBeTestedColumn(current, projects);
+    // A current task can end up sitting in Backlog or In Review too — not
+    // just To Be Tested — e.g. dragged back on the board (TASK-666). Those
+    // are exactly as much "not open work" as To Be Tested, per isBlockedColumn
+    // above; excluding only To Be Tested here left the Agent Activity tab
+    // showing "Working" on a task the agent had nothing left to do on.
+    const working = current != null && !isBlockedColumn(current, projects);
     const live = agent.sessionActive === true;
     return {
         live,

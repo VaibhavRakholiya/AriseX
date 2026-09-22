@@ -742,13 +742,19 @@ const State = (() => {
                 }
             }
 
-            // Dragging an agent's active task into "To Be Tested" frees the
-            // agent, same as move_task on the MCP side — it's waiting on a
-            // human now, not tying up the agent (TASK-572). Not a finish:
-            // agentDoneAt stays untouched, the task just stops being "current".
+            // Dragging an agent's active task into "To Be Tested", "In
+            // Review", or back into "Backlog" frees the agent, same as
+            // move_task on the MCP side — it's waiting on a human now (or
+            // isn't ready yet), not tying up the agent (TASK-572, generalized
+            // in TASK-666 to the same isBlockedColumn set statusFor and the
+            // queue already use — leaving out Backlog/In Review here was
+            // what left an agent's currentTaskId stuck pointing at a task
+            // dragged into either, showing as still "Working" on it forever).
+            // Not a finish: agentDoneAt stays untouched, the task just stops
+            // being "current".
             if (fields.columnId && fields.columnId !== oldTask.columnId
                 && _data.tasks[idx].agentId != null
-                && isToBeTestedColumn(_data.tasks[idx])) {
+                && isBlockedColumn(_data.tasks[idx])) {
                 const agent = Agents.get(_data.tasks[idx].agentId);
                 if (agent && agent.currentTaskId == id) promoteNextForAgent(agent.id, _data.tasks[idx].projectId);
             }
@@ -1232,11 +1238,13 @@ const State = (() => {
             const oldAgentId = task.agentId ?? null;
             if (oldAgentId != null && oldAgentId != agentId) this.releaseTask(oldAgentId, taskId);
 
-            // A task left sitting in "To Be Tested" no longer occupies its
-            // agent, even if nobody explicitly freed it yet (TASK-572) —
-            // self-heal here the same way releaseTask does.
+            // A task left sitting in "To Be Tested", "In Review", or dragged
+            // back into "Backlog" no longer occupies its agent, even if
+            // nobody explicitly freed it yet (TASK-572, generalized in
+            // TASK-666 — see statusFor) — self-heal here the same way
+            // releaseTask does.
             const current = agent.currentTaskId != null ? _data.tasks.find(t => t.id == agent.currentTaskId) : null;
-            if (current && isToBeTestedColumn(current)) promoteNextForAgent(agentId, current.projectId);
+            if (current && isBlockedColumn(current)) promoteNextForAgent(agentId, current.projectId);
 
             task.agentId     = agent.id;
             task.assignee    = agent.name;
@@ -1351,7 +1359,13 @@ const State = (() => {
             if (!agent) return null;
             const current = agent.currentTaskId != null ? _data.tasks.find(t => t.id == agent.currentTaskId) : null;
             return {
-                working:     current != null && !isToBeTestedColumn(current),
+                // A current task can end up sitting in Backlog or In Review
+                // too, not just To Be Tested — e.g. dragged back on the board
+                // (TASK-666). Those are exactly as much "not open work" as To
+                // Be Tested (see isBlockedColumn); excluding only To Be
+                // Tested here left the Agent Activity tab showing "Working"
+                // on a task the agent had nothing left to do on.
+                working:     current != null && !isBlockedColumn(current),
                 live:        agent.sessionActive === true,
                 currentTask: current || null,
                 queueLength: queueForAgent(id, agent.currentTaskId).length,

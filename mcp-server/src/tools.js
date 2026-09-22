@@ -73,21 +73,22 @@ async function releaseAndClaim(agentId, { justFinishedTaskId, claimTaskId } = {}
         // in a real working column (e.g. "To Do") are.
         const isReady = t => !D.isBlockedColumn(D.hydrateTask(t), projects);
 
-        // A task sitting in "To Be Tested" is done from the agent's side and
-        // waiting on a human — it no longer occupies the agent, even if
-        // nobody called finish_task on it yet (TASK-572). Self-heals on every
-        // call, the same way the rest of this function does: whether that
-        // landed here via move_task's own release below, or a column change
-        // from somewhere else entirely (e.g. dragged on the board).
+        // A task sitting in "To Be Tested" — or "In Review", or dragged back
+        // into "Backlog" (TASK-666) — is done from the agent's side (or not
+        // ready yet) and no longer occupies the agent, even if nobody called
+        // finish_task on it yet (TASK-572). Self-heals on every call, the
+        // same way the rest of this function does: whether that landed here
+        // via move_task's own release below, or a column change from
+        // somewhere else entirely (e.g. dragged on the board).
         const current = agent.currentTaskId != null ? tasks.find(t => t.id == agent.currentTaskId) : null;
-        const currentIsToBeTested = current != null && D.isToBeTestedColumn(D.hydrateTask(current), projects);
+        const currentIsBlocked = current != null && D.isBlockedColumn(D.hydrateTask(current), projects);
 
         let changed = false;
         if (justFinishedTaskId != null && agent.currentTaskId == justFinishedTaskId) {
             const next = D.pickNextForAgent(tasks, agent.id, agent.currentTaskId, projects, current?.projectId);
             agent.currentTaskId = next ? next.id : null;
             changed = true;
-        } else if (currentIsToBeTested) {
+        } else if (currentIsBlocked) {
             const next = D.pickNextForAgent(tasks, agent.id, agent.currentTaskId, projects, current.projectId);
             agent.currentTaskId = next ? next.id : null;
             changed = true;
@@ -428,12 +429,18 @@ export async function move_task({ task: ref, column }) {
         // column still needs an explicit finish_task call).
         const isDoneColumn = String(col.name).trim().toLowerCase() === 'done';
         const isToBeTestedColumn = String(col.name).trim().toLowerCase() === 'to be tested';
+        const isReviewColumnMove = String(col.name).trim().toLowerCase() === 'in review';
+        const isBacklogColumnMove = String(col.name).trim().toLowerCase() === 'backlog';
         const isToDoColumnMove = String(col.name).trim().toLowerCase() === 'to do';
         const autoFinish = isDoneColumn && found.agentId != null && found.agentDoneAt == null;
-        // Landing in "To Be Tested" frees the agent too, just without marking
-        // the task done — it's waiting on a human, not back in the queue for
-        // rework (TASK-572).
-        const freesAgent = autoFinish || (isToBeTestedColumn && found.agentId != null);
+        // Landing in "To Be Tested", "In Review", or back in "Backlog" frees
+        // the agent too, just without marking the task done — it's waiting
+        // on a human (or isn't ready yet), not back in the queue for rework
+        // (TASK-572, generalized in TASK-666 to the same isBlockedColumn set
+        // agentStatus/pickNextForAgent already use — leaving out Backlog/In
+        // Review here was what left an agent stuck showing "Working" on a
+        // task dragged into either).
+        const freesAgent = autoFinish || ((isToBeTestedColumn || isReviewColumnMove || isBacklogColumnMove) && found.agentId != null);
         // The reverse of autoFinish: moving a task an agent already finished
         // back into "To Do" reopens it — clears agentDoneAt, since otherwise
         // queueForAgent's `agentDoneAt == null` filter leaves it permanently
