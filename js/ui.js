@@ -1939,6 +1939,13 @@ const UI = (() => {
         document.getElementById('dashAddTaskBtn')?.addEventListener('click', () => Tasks.openModal());
         document.getElementById('dashShortcutsBtn')?.addEventListener('click', openShortcutsSheet);
 
+        // ── Notifications (TASK-652) ────────────────────────
+        document.getElementById('notifBtn')?.addEventListener('click', (e) => {
+            toggleNotifPanel(e.currentTarget);
+        });
+        updateNotifBadge();
+        State.on('chats:changed', updateNotifBadge);
+
         // ── Theme toggle ───────────────────────────────────
         document.getElementById('themeToggleBtn')?.addEventListener('click', toggleTheme);
 
@@ -2190,13 +2197,153 @@ const UI = (() => {
         });
     }
 
+    // ══════════════════════════════════════════════════════
+    // NOTIFICATIONS CENTER (TASK-652)
+    // Surfaces every "question" chat message (agents asking something or
+    // requesting permission, TASK-570) across all projects in one place,
+    // since those otherwise only show as a toast that vanishes and are
+    // easy to miss once you're not on that project's Chat tab.
+    // ══════════════════════════════════════════════════════
+    const NOTIF_DISMISSED_KEY = 'flowboard_dismissed_notifications';
+    let _notifPanelClose = null;
+
+    // Per-viewer read state, not part of the shared chat log — dismissing a
+    // notification here should never delete or alter the underlying chat
+    // message other viewers (or the agent that posted it) still see.
+    function getDismissedNotifIds() {
+        try {
+            const raw = JSON.parse(localStorage.getItem(NOTIF_DISMISSED_KEY) || '[]');
+            return new Set(Array.isArray(raw) ? raw : []);
+        } catch { return new Set(); }
+    }
+
+    function saveDismissedNotifIds(set) {
+        try { localStorage.setItem(NOTIF_DISMISSED_KEY, JSON.stringify(Array.from(set))); }
+        catch (e) { console.warn('UI: could not save dismissed notifications', e); }
+    }
+
+    function getNotifications() {
+        const dismissed = getDismissedNotifIds();
+        return (State.Chats?.getAll() || [])
+            .filter(m => m.authorType === 'question' && !dismissed.has(m.id))
+            .sort((a, b) => b.id - a.id);
+    }
+
+    function updateNotifBadge() {
+        const badge = document.getElementById('notifBadge');
+        if (!badge) return;
+        const count = getNotifications().length;
+        badge.textContent = count > 99 ? '99+' : String(count);
+        badge.hidden = count === 0;
+    }
+
+    function renderNotifItem(m) {
+        const proj = m.projectId ? State.Projects.get(m.projectId) : null;
+        const time = new Date(m.createdAt).toLocaleString([], {
+            month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+        });
+        return `<div class="notif-item" data-notif-id="${m.id}" data-notif-project="${m.projectId ?? ''}">
+            <div class="notif-item-head">
+                <span class="notif-item-title">${escHtml(proj ? `${proj.name} · ${m.author}` : m.author)}</span>
+                <span class="notif-item-time">${escHtml(time)}</span>
+            </div>
+            <div class="notif-item-text">${linkify(m.text)}</div>
+            <button type="button" class="notif-item-dismiss" data-notif-dismiss="${m.id}" aria-label="Dismiss notification" title="Dismiss">
+                <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+            </button>
+        </div>`;
+    }
+
+    function renderNotifList(listEl) {
+        const notifs = getNotifications();
+        listEl.innerHTML = notifs.length
+            ? notifs.map(renderNotifItem).join('')
+            : '<div class="notif-empty">No notifications.</div>';
+
+        listEl.querySelectorAll('[data-notif-dismiss]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                dismissNotification(Number(btn.dataset.notifDismiss));
+                renderNotifList(listEl);
+            });
+        });
+        listEl.querySelectorAll('[data-notif-id]').forEach(item => {
+            item.addEventListener('click', () => {
+                const projectId = item.dataset.notifProject;
+                _notifPanelClose?.();
+                if (projectId) Router.navigate('chat', Number(projectId));
+            });
+        });
+    }
+
+    function dismissNotification(id) {
+        const dismissed = getDismissedNotifIds();
+        dismissed.add(id);
+        saveDismissedNotifIds(dismissed);
+        updateNotifBadge();
+    }
+
+    function clearAllNotifications() {
+        const dismissed = getDismissedNotifIds();
+        getNotifications().forEach(m => dismissed.add(m.id));
+        saveDismissedNotifIds(dismissed);
+        updateNotifBadge();
+    }
+
+    function toggleNotifPanel(anchorEl) {
+        if (_notifPanelClose) { _notifPanelClose(); return; }
+
+        const el = document.createElement('div');
+        el.className = 'dropdown-menu floating open notif-panel';
+        el.setAttribute('role', 'dialog');
+        el.setAttribute('aria-label', 'Notifications');
+        el.innerHTML = `
+            <div class="notif-panel-head">
+                <span>Notifications</span>
+                <button type="button" class="btn btn-ghost btn-sm" id="notifClearAllBtn">Clear all</button>
+            </div>
+            <div class="notif-list" id="notifList"></div>`;
+        document.body.appendChild(el);
+
+        const r = anchorEl.getBoundingClientRect();
+        el.style.position = 'fixed';
+        el.style.top   = `${Math.min(r.bottom + 4, window.innerHeight - el.offsetHeight - 8)}px`;
+        el.style.right = `${Math.max(8, window.innerWidth - r.right)}px`;
+
+        const listEl = el.querySelector('#notifList');
+        renderNotifList(listEl);
+
+        el.querySelector('#notifClearAllBtn').addEventListener('click', () => {
+            clearAllNotifications();
+            renderNotifList(listEl);
+        });
+
+        function close() {
+            el.remove();
+            _notifPanelClose = null;
+            anchorEl.setAttribute('aria-expanded', 'false');
+            document.removeEventListener('click', onDocClick, true);
+            document.removeEventListener('keydown', onKey, true);
+        }
+        function onDocClick(e) { if (!el.contains(e.target) && e.target !== anchorEl && !anchorEl.contains(e.target)) close(); }
+        function onKey(e) { if (e.key === 'Escape') { close(); anchorEl.focus(); } }
+
+        setTimeout(() => {
+            document.addEventListener('click', onDocClick, true);
+            document.addEventListener('keydown', onKey, true);
+        }, 0);
+
+        anchorEl.setAttribute('aria-expanded', 'true');
+        _notifPanelClose = close;
+    }
+
     return {
         init, toast, confirm, celebrateConfetti,
         openTaskPanel, closeTaskPanel, getOpenTaskId, isTaskPanelOpen,
         toggleTaskPanelFullscreen, exitTaskPanelFullscreen,
         openCommandPalette, closeCommandPalette,
         openShortcutsSheet, closeShortcutsSheet,
-        applyTheme, toggleTheme,
+        applyTheme, toggleTheme, updateNotifBadge,
         // Shared component layer
         escHtml, linkify, timeAgo, emptyState, skeleton, menu, inlinePrompt, trapFocus,
     };

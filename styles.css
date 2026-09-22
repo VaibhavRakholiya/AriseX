@@ -2847,6 +2847,93 @@ body.task-panel-fullscreen #content-area {
 
 .dropdown-separator { height: 1px; background: var(--border); margin: var(--sp-1) 0; }
 
+/* ── 20b. NOTIFICATIONS (TASK-652) ───────────────────────── */
+.notif-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 3px;
+    border-radius: 999px;
+    background: #ef4444;
+    color: #fff;
+    font-size: 10px;
+    font-weight: var(--fw-bold);
+    line-height: 15px;
+    text-align: center;
+}
+
+.notif-panel {
+    width: 360px;
+    max-width: calc(100vw - 24px);
+    padding: 0;
+}
+
+.notif-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--sp-2) var(--sp-3);
+    border-bottom: 1px solid var(--border);
+    font-weight: var(--fw-bold);
+    font-size: var(--text-sm);
+}
+
+.notif-list {
+    max-height: 360px;
+    overflow-y: auto;
+    padding: var(--sp-2);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+}
+
+.notif-empty {
+    color: var(--text-tertiary);
+    text-align: center;
+    padding: var(--sp-5) var(--sp-3);
+    font-size: var(--text-sm);
+}
+
+.notif-item {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid #f59e0b;
+    border-radius: var(--radius-md);
+    padding: var(--sp-2) var(--sp-6) var(--sp-2) var(--sp-3);
+    cursor: pointer;
+}
+
+.notif-item:hover { background: var(--surface-hover); }
+
+.notif-item-head {
+    display: flex;
+    align-items: baseline;
+    gap: var(--sp-2);
+    margin-bottom: 2px;
+}
+
+.notif-item-title { font-weight: var(--fw-bold); font-size: var(--text-sm); }
+.notif-item-time  { font-size: var(--text-2xs); color: var(--text-tertiary); }
+.notif-item-text  { font-size: var(--text-sm); color: var(--text-secondary); white-space: pre-wrap; word-break: break-word; }
+
+.notif-item-dismiss {
+    position: absolute;
+    top: var(--sp-2);
+    right: var(--sp-2);
+    width: 20px;
+    height: 20px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-tertiary);
+}
+
+.notif-item-dismiss:hover { background: var(--surface-overlay); color: var(--text); }
+
 /* ── 22. INLINE INPUTS ───────────────────────────────────── */
 .inline-add {
     display: flex;
