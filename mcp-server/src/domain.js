@@ -16,7 +16,7 @@
  */
 
 export const PRIORITIES  = ['low', 'medium', 'high', 'urgent', 'critical'];
-export const AGENT_MODELS = ['default', 'opus', 'sonnet', 'haiku'];
+export const AGENT_MODELS = ['default', 'opus-5.5', 'opus', 'sonnet', 'haiku'];
 
 /** Mirrors js/state.js `importData` — the /\D/g form, which is the more robust of the two in the app. */
 export function nextTaskKey(tasks) {

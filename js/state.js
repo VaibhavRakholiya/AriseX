@@ -113,7 +113,7 @@ const State = (() => {
     }
 
     // ── Agents ────────────────────────────────────────────
-    const AGENT_MODELS = ['default', 'opus', 'sonnet', 'haiku'];
+    const AGENT_MODELS = ['default', 'opus-5.5', 'opus', 'sonnet', 'haiku'];
 
     /**
      * The slug is the stable handle Claude uses to refer to an agent, so it has

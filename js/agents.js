@@ -11,10 +11,11 @@
 const Agents = (() => {
     const AGENT_COLORS = ['#6366f1','#3b82f6','#22c55e','#f59e0b','#ef4444','#ec4899','#8b5cf6','#06b6d4','#f97316','#10b981'];
     const MODELS = [
-        { value: 'default', label: 'Default' },
-        { value: 'opus',    label: 'Opus — deepest reasoning' },
-        { value: 'sonnet',  label: 'Sonnet — balanced' },
-        { value: 'haiku',   label: 'Haiku — fastest' },
+        { value: 'default',   label: 'Default' },
+        { value: 'opus-5.5',  label: 'Opus 5.5 — deepest reasoning' },
+        { value: 'opus',      label: 'Opus — deep reasoning' },
+        { value: 'sonnet',    label: 'Sonnet — balanced' },
+        { value: 'haiku',     label: 'Haiku — fastest' },
     ];
 
     let _editingAgentId = null;

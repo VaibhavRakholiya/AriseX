@@ -137,7 +137,7 @@ register('create_agent',
         systemPrompt: z.string().optional(),
         emoji:        z.string().optional(),
         color:        z.string().optional().describe('Hex, e.g. "#f59e0b".'),
-        model:        z.enum(['default', 'opus', 'sonnet', 'haiku']).optional(),
+        model:        z.enum(['default', 'opus-5.5', 'opus', 'sonnet', 'haiku']).optional(),
         enabled:      z.boolean().optional(),
         slug:         z.string().optional(),
     }, T.create_agent);
@@ -151,7 +151,7 @@ register('update_agent',
         systemPrompt: z.string().optional(),
         emoji:        z.string().optional(),
         color:        z.string().optional(),
-        model:        z.enum(['default', 'opus', 'sonnet', 'haiku']).optional(),
+        model:        z.enum(['default', 'opus-5.5', 'opus', 'sonnet', 'haiku']).optional(),
         enabled:      z.boolean().optional(),
     }, T.update_agent);
 
