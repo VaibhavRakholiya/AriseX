@@ -132,7 +132,6 @@ class FirebaseRESTIntegration {
 
                 if (putRes.ok) {
                     this._lastKnown[dataType] = merged;
-                    localStorage.setItem(`${dataType}_backup`, JSON.stringify(merged));
                     console.log(`✅ Data saved to Firebase via REST: ${dataType}`);
                     return true;
                 }
@@ -151,9 +150,7 @@ class FirebaseRESTIntegration {
             throw new Error(`${dataType} is being written too rapidly by something else. Nothing was written.`);
         } catch (error) {
             console.error(`❌ Error saving ${dataType} to Firebase:`, error);
-            // Fallback to localStorage
-            localStorage.setItem(`${dataType}_backup`, JSON.stringify(local));
-            this.showToast(`Saved locally (offline): ${dataType}`, 'warning');
+            this.showToast(`Could not save ${dataType} — offline`, 'error');
             return false;
         }
     }
@@ -178,8 +175,6 @@ class FirebaseRESTIntegration {
             console.log(`📡 Save response status: ${response.status}`);
 
             if (response.ok) {
-                // Also save to localStorage as backup
-                localStorage.setItem(`${dataType}_backup`, JSON.stringify(data));
                 console.log(`✅ Data saved to Firebase via REST: ${dataType}`);
                 return true;
             } else {
@@ -189,10 +184,7 @@ class FirebaseRESTIntegration {
             }
         } catch (error) {
             console.error(`❌ Error saving ${dataType} to Firebase:`, error);
-
-            // Fallback to localStorage
-            localStorage.setItem(`${dataType}_backup`, JSON.stringify(data));
-            this.showToast(`Saved locally (offline): ${dataType}`, 'warning');
+            this.showToast(`Could not save ${dataType} — offline`, 'error');
             return false;
         }
     }
@@ -216,8 +208,6 @@ class FirebaseRESTIntegration {
                 console.log(`📦 Loaded data for ${dataType}:`, data);
                 
                 if (data !== null) {
-                    // Update localStorage backup
-                    localStorage.setItem(`${dataType}_backup`, JSON.stringify(data));
                     console.log(`✅ Data loaded from Firebase via REST: ${dataType}`);
                     // This is now the baseline saveData() diffs against to tell
                     // "created elsewhere, preserve it" apart from "I deleted
@@ -237,17 +227,8 @@ class FirebaseRESTIntegration {
             }
         } catch (error) {
             console.error(`❌ Error loading ${dataType} from Firebase:`, error);
-            // Fallback to localStorage
-            const backup = localStorage.getItem(`${dataType}_backup`);
-            if (backup) {
-                console.log(`📱 Using local backup for: ${dataType}`);
-                const parsed = JSON.parse(backup);
-                if (Array.isArray(parsed)) this._lastKnown[dataType] = parsed;
-                return parsed;
-            } else {
-                console.log(`🆕 Using default data for: ${dataType}`);
-                return this.getDefaultData(dataType);
-            }
+            this.showToast(`Could not load ${dataType} — offline`, 'error');
+            return null;
         }
     }
 
@@ -359,27 +340,6 @@ class FirebaseRESTIntegration {
     updateUI(dataType) {
         // Disabled automatic UI updates - data loads only once on page load
         console.log(`⏸️ Skipping automatic UI update for ${dataType} (auto-refresh disabled)`);
-    }
-
-    async syncPendingChanges() {
-        // Sync any local changes that were made while offline
-        if (this.isConnected) {
-            try {
-                console.log('🔄 Syncing pending changes...');
-                const dataTypes = ['projects', 'tasks', 'backlogItems', 'timeEntries', 'timesheetReviews'];
-                
-                for (const dataType of dataTypes) {
-                    const localData = JSON.parse(localStorage.getItem(`${dataType}_backup`) || '[]');
-                    if (localData && localData.length > 0) {
-                        await this.saveData(dataType, localData);
-                    }
-                }
-                
-                console.log('✅ Sync completed');
-            } catch (error) {
-                console.error('❌ Error syncing data:', error);
-            }
-        }
     }
 
     showToast(message, type = 'info') {

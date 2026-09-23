@@ -1,11 +1,11 @@
 /**
  * FlowBoard — State Management
- * Central in-memory store with localStorage persistence and Firebase sync.
+ * Central in-memory store, synced directly to Firebase. Nothing but login
+ * info (username/isLoggedIn/loginTime, handled outside this file) is
+ * persisted locally (TASK-680) — a reload always re-reads from Firebase.
  */
 
 const State = (() => {
-    const STORAGE_KEY = 'flowboard_data';
-    const ACTIVITY_KEY = 'flowboard_activity';
     const MAX_ACTIVITY = 50;
 
     const defaultColumns = [
@@ -313,38 +313,17 @@ const State = (() => {
 
     // ── Persistence ──────────────────────────────────────
     function save() {
-        try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(_data));
-        } catch (e) {
-            console.warn('State: localStorage save failed', e);
-        }
         scheduleSyncToFirebase();
     }
 
+    /**
+     * Reset to an empty in-memory store. There is no local cache to hydrate
+     * from — the real data arrives moments later via loadFromFirebase(),
+     * called right after State.init() during app bootstrap.
+     */
     function load() {
-        try {
-            const raw = localStorage.getItem(STORAGE_KEY);
-            if (raw) {
-                const parsed = JSON.parse(raw);
-                _data = Object.assign(getDefaults(), parsed);
-                if (!_data.labels || !_data.labels.length) _data.labels = defaultLabels;
-                if (!Array.isArray(_data.agents)) _data.agents = [];
-                if (!Array.isArray(_data.chats)) _data.chats = [];
-                if (!_data.activity) _data.activity = [];
-                normalizeAllTasks();
-                normalizeAllAgents();
-                if (removeOrphanedTasks()) save();
-            }
-        } catch (e) {
-            console.warn('State: load failed, using defaults', e);
-            _data = getDefaults();
-        }
-
-        // Determine task counter from existing task IDs
-        _taskCounter = _data.tasks.reduce((max, t) => {
-            const num = parseInt(String(t.taskKey || '0').replace('TASK-', ''), 10) || 0;
-            return Math.max(max, num);
-        }, 0);
+        _data = getDefaults();
+        _taskCounter = 0;
     }
 
     function scheduleSyncToFirebase() {
@@ -384,8 +363,18 @@ const State = (() => {
             if (chats    && Array.isArray(chats))    _data.chats    = chats;
             normalizeAllTasks();
             normalizeAllAgents();
-            removeOrphanedTasks();
-            save();
+            // A record this tab already knows about is always taken from the
+            // local copy in firebase-rest-integration.js's merge-on-save (it
+            // only decides whether to *keep or drop* a whole record, never
+            // merges individual fields) — so calling save() here unconditionally
+            // would echo the snapshot just read straight back to Firebase and
+            // silently clobber any field an MCP session wrote in between this
+            // read and that tab's next debounced push (e.g. start_session's
+            // sessionActive/sessionCount, set moments after this load ran).
+            // Only push back to Firebase when local normalization actually
+            // changed something (orphaned tasks reparented) — a real local
+            // edit, not a mirror of what was just fetched.
+            if (removeOrphanedTasks() > 0) save();
             emit('chats:changed');
             return true;
         } catch (e) {
