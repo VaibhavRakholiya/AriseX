@@ -1982,8 +1982,7 @@ const UI = (() => {
         installSyncStatus();
 
         // ── Export / Import / Clear Data ───────────────────
-        document.getElementById('refreshCloudBtn')?.addEventListener('click', async (e) => {
-            const btn = e.currentTarget;
+        async function refreshFromCloud(btn) {
             btn.disabled = true;
             const loaded = await State.loadFromFirebase();
             btn.disabled = false;
@@ -1992,7 +1991,9 @@ const UI = (() => {
             const { view, projectId } = Router.getCurrent();
             Router.renderView(view, projectId);
             toast('Refreshed from cloud', 'success');
-        });
+        }
+        document.getElementById('refreshCloudBtn')?.addEventListener('click', (e) => refreshFromCloud(e.currentTarget));
+        document.getElementById('headerRefreshCloudBtn')?.addEventListener('click', (e) => refreshFromCloud(e.currentTarget));
 
         document.getElementById('exportDataBtn')?.addEventListener('click', () => {
             State.exportData();
