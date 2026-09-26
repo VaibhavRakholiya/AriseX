@@ -2270,9 +2270,18 @@ const UI = (() => {
         });
         listEl.querySelectorAll('[data-notif-id]').forEach(item => {
             item.addEventListener('click', () => {
+                const notifId = Number(item.dataset.notifId);
                 const projectId = item.dataset.notifProject;
+                const msg = notifs.find(m => m.id === notifId);
+                const task = msg?.taskKey
+                    ? State.Tasks.getAll().find(t => t.taskKey === msg.taskKey)
+                    : null;
                 _notifPanelClose?.();
-                if (projectId) Router.navigate('chat', Number(projectId));
+                if (task) {
+                    openTaskPanel(task.id);
+                } else if (projectId) {
+                    Router.navigate('chat', Number(projectId));
+                }
             });
         });
     }
