@@ -1634,6 +1634,7 @@ const UI = (() => {
         { group: 'General', keys: ['N'],      desc: 'New task' },
         { group: 'General', keys: ['⌘', 'B'], desc: 'Toggle sidebar' },
         { group: 'General', keys: ['?'],      desc: 'This help sheet' },
+        { group: 'General', keys: ['R'],      desc: 'Refresh from cloud' },
         { group: 'General', keys: ['Esc'],    desc: 'Close panel or dialog' },
         { group: 'Navigation', keys: ['G', 'D'], desc: 'Go to Dashboard' },
         { group: 'Navigation', keys: ['G', 'M'], desc: 'Go to My Tasks' },
@@ -1747,6 +1748,10 @@ const UI = (() => {
                     break;
                 case 'k':
                     e.preventDefault(); moveRowFocus(-1);
+                    break;
+                case 'r':
+                    e.preventDefault();
+                    document.getElementById('headerRefreshCloudBtn')?.click();
                     break;
                 case 'enter': {
                     const id = focusedTaskId();
