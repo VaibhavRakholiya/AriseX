@@ -1278,7 +1278,6 @@ const UI = (() => {
         const navCmds = [
             { icon: 'fa-gauge-high',     label: 'Dashboard',        action: () => { closeCommandPalette(); Router.navigate('dashboard'); } },
             { icon: 'fa-check-circle',   label: 'My Tasks',         action: () => { closeCommandPalette(); Router.navigate('mytasks'); } },
-            { icon: 'fa-chart-gantt',    label: 'Timeline',         action: () => { closeCommandPalette(); Router.navigate('timeline'); } },
             { icon: 'fa-chart-bar',      label: 'Reports',          action: () => { closeCommandPalette(); Router.navigate('reports'); } },
             { icon: 'fa-plus',           label: 'New Task',         action: () => { closeCommandPalette(); Tasks.openModal(); }, kbd: ['N'] },
             { icon: 'fa-diagram-project',label: 'New Project',      action: () => { closeCommandPalette(); Projects.openModal(); } },
@@ -1638,7 +1637,6 @@ const UI = (() => {
         { group: 'General', keys: ['Esc'],    desc: 'Close panel or dialog' },
         { group: 'Navigation', keys: ['G', 'D'], desc: 'Go to Dashboard' },
         { group: 'Navigation', keys: ['G', 'M'], desc: 'Go to My Tasks' },
-        { group: 'Navigation', keys: ['G', 'T'], desc: 'Go to Timeline' },
         { group: 'Navigation', keys: ['G', 'R'], desc: 'Go to Reports' },
         { group: 'Navigation', keys: ['G', 'S'], desc: 'Go to Settings' },
         { group: 'Task list', keys: ['J'], desc: 'Focus next task' },
@@ -1648,7 +1646,7 @@ const UI = (() => {
         { group: 'Dialogs', keys: ['⌘', 'Enter'], desc: 'Save and close' },
     ];
 
-    const GOTO_ROUTES = { d: 'dashboard', m: 'mytasks', t: 'timeline', r: 'reports', s: 'settings' };
+    const GOTO_ROUTES = { d: 'dashboard', m: 'mytasks', r: 'reports', s: 'settings' };
     let _gotoArmed = false;
     let _gotoTimer = null;
 
@@ -2390,7 +2388,6 @@ const App = (() => {
         Board.init();
         Chat.init();
         Reports.init();
-        Timeline.init();
         Dashboard.init();
         Router.init();
 

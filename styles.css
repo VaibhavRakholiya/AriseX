@@ -1047,7 +1047,7 @@ select.form-control {
     color: var(--primary);
 }
 
-/* View mode toggle (board/list/timeline) */
+/* View mode toggle (board/list) */
 .view-toggle {
     display: flex;
     background: var(--surface);
@@ -1563,134 +1563,6 @@ select.form-control {
 }
 
 .add-column-btn:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-subtle); }
-
-/* ── 11. TIMELINE VIEW ───────────────────────────────────── */
-#view-timeline {
-    overflow: hidden;
-    flex-direction: column;
-}
-
-.timeline-container {
-    flex: 1;
-    overflow: auto;
-    padding: 0 var(--sp-6) var(--sp-6);
-}
-
-.timeline-grid {
-    display: flex;
-    flex-direction: column;
-    min-width: max-content;
-}
-
-.timeline-header-row {
-    display: flex;
-    position: sticky;
-    top: 0;
-    z-index: 10;;
-    background: var(--bg);
-    border-bottom: 1px solid var(--border);
-    margin-bottom: var(--sp-2);
-}
-
-.timeline-task-label-col {
-    width: 220px;
-    min-width: 220px;
-    flex-shrink: 0;
-    padding: var(--sp-3) var(--sp-4);
-    font-size: var(--text-sm);
-    font-weight: var(--fw-bold);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text-tertiary);
-    border-right: 1px solid var(--border);
-}
-
-.timeline-dates-header {
-    display: flex;
-    flex: 1;
-    overflow: hidden;
-}
-
-.timeline-day-header {
-    text-align: center;
-    padding: var(--sp-2);
-    font-size: var(--text-sm);
-    color: var(--text-tertiary);
-    border-right: 1px solid var(--border-subtle);
-    flex-shrink: 0;
-    white-space: nowrap;
-}
-
-.timeline-day-header.today {
-    color: var(--primary);
-    font-weight: var(--fw-bold);
-    background: var(--primary-subtle);
-}
-
-.timeline-row {
-    display: flex;
-    align-items: center;
-    min-height: 44px;
-    border-bottom: 1px solid var(--border-subtle);
-}
-
-.timeline-row:hover { background: var(--surface-hover); }
-
-.timeline-task-label {
-    width: 220px;
-    min-width: 220px;
-    flex-shrink: 0;
-    padding: var(--sp-2) var(--sp-4);
-    font-size: var(--text-base);
-    font-weight: var(--fw-medium);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    border-right: 1px solid var(--border-subtle);
-    cursor: pointer;
-}
-
-.timeline-bars-area {
-    flex: 1;
-    position: relative;
-    height: 44px;
-}
-
-.timeline-bar {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    height: 24px;
-    border-radius: var(--radius-sm);
-    background: var(--primary);
-    opacity: 0.85;
-    cursor: pointer;
-    transition: opacity var(--transition-fast), filter var(--transition-fast);
-    display: flex;
-    align-items: center;
-    padding: 0 var(--sp-2);
-    overflow: hidden;
-}
-
-.timeline-bar:hover { opacity: 1; filter: brightness(1.1); }
-.timeline-bar-text {
-    font-size: var(--text-sm);
-    color: var(--text-on-brand);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.timeline-today-line {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 2px;
-    background: var(--priority-critical);
-    opacity: 0.6;
-    pointer-events: none;
-    z-index: 5;;
-}
 
 /* ── 12. REPORTS VIEW ────────────────────────────────────── */
 #view-reports {

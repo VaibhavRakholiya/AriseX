@@ -3,7 +3,6 @@
  * Hash-based SPA routing. Routes:
  *   #board/:projectId   (project task list; no bare #board)
  *   #chat/:projectId    (project chat log; no bare #chat)
- *   #timeline
  *   #reports
  *   #agents
  *   #mytasks
@@ -17,7 +16,6 @@ const Router = (() => {
         dashboard: 'view-dashboard',
         board:     'view-board',
         chat:      'view-chat',
-        timeline:  'view-timeline',
         reports:   'view-reports',
         agents:    'view-agents',
         mytasks:   'view-mytasks',
@@ -115,9 +113,6 @@ const Router = (() => {
             case 'chat':
                 window.Chat       && Chat.render(projectId);
                 break;
-            case 'timeline':
-                window.Timeline   && Timeline.render();
-                break;
             case 'reports':
                 window.Reports    && Reports.render();
                 break;
@@ -141,7 +136,6 @@ const Router = (() => {
             dashboard: 'Dashboard',
             board:     'Tasks',
             chat:      'Chat',
-            timeline:  'Timeline',
             reports:   'Reports',
             agents:    'Agent Activity',
             mytasks:   'My Tasks',
