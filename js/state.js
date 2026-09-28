@@ -805,6 +805,22 @@ const State = (() => {
             emit('tasks:changed', { type: 'delete', task });
         },
 
+        /** Removes every task sitting in a "Done" column, across all projects. Returns how many were removed. */
+        clearDone() {
+            const toRemove = _data.tasks.filter(t => isDoneColumnExact(t));
+            if (!toRemove.length) return 0;
+            toRemove.forEach(task => {
+                if (task.isTimerRunning) Timer.stop(task.id);
+                if (task.agentId != null) Agents.releaseTask(task.agentId, task.id);
+            });
+            const ids = new Set(toRemove.map(t => t.id));
+            _data.tasks = _data.tasks.filter(t => !ids.has(t.id));
+            save();
+            addActivity('tasks_cleared', `${toRemove.length} task(s) from Done`);
+            emit('tasks:changed', { type: 'delete-many', tasks: toRemove });
+            return toRemove.length;
+        },
+
         addSubtask(taskId, text, parentSubtaskId = null) {
             const task = this.get(taskId);
             if (!task) return;

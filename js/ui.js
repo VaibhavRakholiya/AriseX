@@ -2036,6 +2036,16 @@ const UI = (() => {
             );
         });
 
+        document.getElementById('clearDoneTasksBtn')?.addEventListener('click', () => {
+            confirm('Clear all Done tasks across every project? This cannot be undone.', () => {
+                const count = State.Tasks.clearDone();
+                Projects.renderSidebar();
+                const { view, projectId } = Router.getCurrent();
+                Router.renderView(view, projectId);
+                toast(count ? `Cleared ${count} Done task${count === 1 ? '' : 's'}` : 'No Done tasks to clear', count ? 'success' : 'info');
+            }, 'Clear', 'btn-danger');
+        });
+
         document.getElementById('clearDataBtn')?.addEventListener('click', () => {
             confirm('Clear ALL data? This cannot be undone.', () => {
                 State.clearAll();
