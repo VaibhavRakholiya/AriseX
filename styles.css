@@ -1386,6 +1386,17 @@ select.form-control {
     border-color: var(--border);
 }
 
+.add-task-inline-input {
+    width: 100%;
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--primary);
+    background: var(--card-bg);
+    color: var(--text-primary);
+    font-size: var(--text-base);
+    outline: none;
+}
+
 /* Task Card */
 .task-card {
     background: var(--card-bg);
