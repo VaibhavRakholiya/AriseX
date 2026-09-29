@@ -1386,17 +1386,6 @@ select.form-control {
     border-color: var(--border);
 }
 
-.add-task-inline-input {
-    width: 100%;
-    padding: var(--sp-2) var(--sp-3);
-    border-radius: var(--radius-md);
-    border: 1px solid var(--primary);
-    background: var(--card-bg);
-    color: var(--text-primary);
-    font-size: var(--text-base);
-    outline: none;
-}
-
 /* Task Card */
 .task-card {
     background: var(--card-bg);
@@ -4311,3 +4300,15 @@ input.form-control--inline { padding: 5px 10px; }
     .agent-row-main { flex-basis: 100%; order: -1; }
     .agent-row-count { margin-left: auto; }
 }
+
+.task-card-check {
+    width: 16px;
+    height: 16px;
+    margin-top: 2px;
+    border-radius: 50%;
+    border: 1.5px solid var(--text-tertiary);
+    flex-shrink: 0;
+    transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.task-card-check:hover { border-color: #22c55e; background: rgba(34, 197, 94, 0.15); }

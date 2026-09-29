@@ -293,6 +293,8 @@ const Tasks = (() => {
                      data-task-id="${task.id}"
                      draggable="true">
             <div class="task-card-header">
+                ${done ? '' : `<button type="button" class="task-card-check" title="Mark as done"
+                        onclick="event.stopPropagation(); Tasks.markCardDone(${task.id});"></button>`}
                 <div class="task-card-title">${escHtml(task.title)}</div>
                 ${done ? `<button type="button" class="task-card-delete" data-task-id="${task.id}" title="Delete task"
                         onclick="event.stopPropagation(); Tasks.deleteCardTask(${task.id});">
@@ -315,6 +317,24 @@ const Tasks = (() => {
                 </button>
             </div>
         </div>`;
+    }
+
+    // Checkbox on board cards: moves the task to its project's Done column
+    // without opening it.
+    function markCardDone(id) {
+        const task = State.Tasks.get(id);
+        const proj = task && task.projectId ? State.Projects.get(task.projectId) : null;
+        if (!proj) return;
+        const cols    = [...proj.columns].sort((a, b) => a.position - b.position);
+        const doneCol = cols.find(c => c.name.toLowerCase() === 'done')
+                     || cols.find(c => c.name.toLowerCase().includes('done'));
+        if (!doneCol) {
+            UI.toast('This project has no Done column', 'error');
+            return;
+        }
+        State.Tasks.update(id, { columnId: doneCol.id });
+        const { view, projectId } = Router.getCurrent();
+        Router.renderView(view, projectId);
     }
 
     // Quick-delete affordance shown on Done-column cards, so a finished task
@@ -770,7 +790,7 @@ const Tasks = (() => {
 
     return {
         init, openModal, closeModal,
-        buildTaskCard, deleteCardTask,
+        buildTaskCard, deleteCardTask, markCardDone,
         renderMyTasks, formatDueDate, formatTime, formatHours, formatElapsed,
         escHtml, hexToRgba, isDoneColumn, subtaskProgress,
         PRIORITIES, priorityDot, priorityLabel, priorityOptions,

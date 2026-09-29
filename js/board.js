@@ -242,40 +242,10 @@ const Board = (() => {
         });
 
         container.querySelectorAll('[data-add-column]').forEach(btn => {
-            btn.addEventListener('click', () => startInlineAdd(btn, projectId, btn.dataset.addColumn));
+            btn.addEventListener('click', () => {
+                Tasks.openModal(null, { projectId, columnId: btn.dataset.addColumn });
+            });
         });
-    }
-
-    // Swaps a column's "Add task" button for a title input so a task can be
-    // created straight into that column (e.g. Done) without opening the modal.
-    function startInlineAdd(btn, projectId, columnId) {
-        const footer = btn.parentElement;
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.className = 'add-task-inline-input';
-        input.placeholder = 'Task title — Enter to add, Esc to cancel';
-        btn.hidden = true;
-        footer.appendChild(input);
-        input.focus();
-
-        let finished = false;
-        const cancel = () => {
-            if (finished) return;
-            finished = true;
-            input.remove();
-            btn.hidden = false;
-        };
-        input.addEventListener('keydown', async (e) => {
-            if (e.key === 'Escape') { cancel(); return; }
-            if (e.key !== 'Enter' || e.isComposing) return;
-            e.preventDefault();
-            const title = input.value.trim();
-            if (!title) { cancel(); return; }
-            finished = true;
-            await State.Tasks.create({ title, projectId, columnId, priority: 'medium' });
-            render(projectId);
-        });
-        input.addEventListener('blur', cancel);
     }
 
     function renderList(projectId, proj, container) {
