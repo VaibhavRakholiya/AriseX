@@ -336,9 +336,14 @@ const State = (() => {
         if (!window.firebaseRESTIntegration) { emit('sync:offline'); return; }
         emit('sync:start');
         try {
-            await window.firebaseRESTIntegration.saveData('flowboard_projects', _data.projects);
-            await window.firebaseRESTIntegration.saveData('flowboard_tasks',    _data.tasks);
-            await window.firebaseRESTIntegration.saveData('flowboard_agents',   _data.agents);
+            // Three independent RTDB nodes — no reason to serialize them
+            // (TASK-730). Promise.all cuts sync latency to roughly the
+            // slowest single call instead of the sum of all three.
+            await Promise.all([
+                window.firebaseRESTIntegration.saveData('flowboard_projects', _data.projects),
+                window.firebaseRESTIntegration.saveData('flowboard_tasks',    _data.tasks),
+                window.firebaseRESTIntegration.saveData('flowboard_agents',   _data.agents),
+            ]);
             emit('sync:ok');
         } catch (e) {
             console.warn('State: Firebase sync failed', e);

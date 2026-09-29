@@ -12,6 +12,12 @@ class FirebaseRESTIntegration {
         // collection, keyed by dataType — see saveData()'s merge logic below.
         this._lastKnown = {};
 
+        // The most recent ETag this tab has seen for each collection
+        // (TASK-730). Lets saveData() skip straight to a conditional PUT
+        // instead of doing a GET first every time, and lets loadData() send
+        // If-None-Match so an unchanged collection isn't re-downloaded.
+        this._lastEtag = {};
+
         // Initialize network listeners
         this.initNetworkListeners();
 
@@ -107,6 +113,42 @@ class FirebaseRESTIntegration {
         const local = data.filter(r => r != null);
 
         try {
+            // Fast path (TASK-730): if this tab already holds an ETag for
+            // this collection from an earlier load/save, skip straight to a
+            // conditional PUT instead of doing a GET first — removes a full
+            // round trip on the common case of no concurrent writer. This is
+            // safe, not just faster: `if-match` only succeeds when the
+            // remote content is still exactly what we last saw, in which
+            // case the merge below would have found nothing new to preserve
+            // anyway. If someone else wrote since, the ETag no longer
+            // matches, the PUT fails with 412, and we fall through to the
+            // GET+merge+retry path, which still has the last word.
+            if (this._lastEtag[dataType]) {
+                const fastPut = await fetch(await this.withAuth(url), {
+                    method:  'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Firebase-ETag': 'true',
+                        'if-match': this._lastEtag[dataType],
+                    },
+                    body: JSON.stringify(local),
+                });
+
+                if (fastPut.ok) {
+                    this._lastKnown[dataType] = local;
+                    this._lastEtag[dataType]  = fastPut.headers.get('etag');
+                    console.log(`✅ Data saved to Firebase via REST (fast path): ${dataType}`);
+                    return true;
+                }
+
+                if (fastPut.status !== 412) {
+                    const errorText = await fastPut.text().catch(() => '');
+                    throw new Error(`HTTP ${fastPut.status}: ${fastPut.statusText} ${errorText}`.trim());
+                }
+                // 412: someone else wrote since our cached ETag — fall
+                // through to the merge path, which re-reads fresh state.
+            }
+
             for (let attempt = 0; attempt <= maxRetries; attempt++) {
                 const getRes = await fetch(await this.withAuth(url), {
                     headers: { 'X-Firebase-ETag': 'true' },
@@ -126,12 +168,17 @@ class FirebaseRESTIntegration {
 
                 const putRes = await fetch(await this.withAuth(url), {
                     method:  'PUT',
-                    headers: { 'Content-Type': 'application/json', 'if-match': etag },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Firebase-ETag': 'true',
+                        'if-match': etag,
+                    },
                     body:    JSON.stringify(merged),
                 });
 
                 if (putRes.ok) {
                     this._lastKnown[dataType] = merged;
+                    this._lastEtag[dataType]  = putRes.headers.get('etag');
                     console.log(`✅ Data saved to Firebase via REST: ${dataType}`);
                     return true;
                 }
@@ -192,21 +239,33 @@ class FirebaseRESTIntegration {
     async loadData(dataType) {
         try {
             const url = `${this.databaseURL}/timetracker/${dataType}.json`;
+            const headers = { 'Content-Type': 'application/json', 'X-Firebase-ETag': 'true' };
+            // Conditional GET (TASK-730): when this tab already has an ETag
+            // for this collection, ask Firebase to send back 304 Not
+            // Modified instead of the full payload if nothing changed since
+            // — skips re-downloading and re-parsing data nobody touched.
+            if (this._lastEtag[dataType]) headers['If-None-Match'] = this._lastEtag[dataType];
+
             console.log(`📥 Loading ${dataType} from: ${url}`);
 
             const response = await fetch(await this.withAuth(url), {
                 method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
+                headers,
             });
 
             console.log(`📡 Load response status: ${response.status}`);
 
+            if (response.status === 304) {
+                console.log(`♻️  ${dataType} unchanged since last load — using cached copy`);
+                return this._lastKnown[dataType] ?? this.getDefaultData(dataType);
+            }
+
             if (response.ok) {
+                const etag = response.headers.get('etag');
+                if (etag) this._lastEtag[dataType] = etag;
                 const data = await response.json();
                 console.log(`📦 Loaded data for ${dataType}:`, data);
-                
+
                 if (data !== null) {
                     console.log(`✅ Data loaded from Firebase via REST: ${dataType}`);
                     // This is now the baseline saveData() diffs against to tell
